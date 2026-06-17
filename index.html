@@ -233,10 +233,6 @@
   <!-- CALENDAR VIEW -->
   <section class="view active" id="view-calendar">
     <div class="card">
-      <div class="toolbar">
-        <button id="logTodayBtn" class="primary">+ Log a workout</button>
-        <span class="small-muted">Click any day to view/log/edit that day's workout</span>
-      </div>
       <div class="cal-header">
         <button class="secondary" id="prevMonth">‹ Prev</button>
         <h2 id="calMonthLabel" style="margin:0;"></h2>
@@ -244,6 +240,10 @@
       </div>
       <div class="cal-grid" id="calDow"></div>
       <div class="cal-grid" id="calGrid" style="margin-top:6px;"></div>
+      <div class="toolbar" style="margin-top:16px; margin-bottom:0;">
+        <button id="logTodayBtn" class="primary">+ Log a workout</button>
+        <span class="small-muted">Click any day to view/log/edit that day's workout</span>
+      </div>
     </div>
   </section>
 
