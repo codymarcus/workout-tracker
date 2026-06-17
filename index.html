@@ -6,16 +6,16 @@
 <title>Workout Tracker</title>
 <style>
   :root {
-    --bg: #0f1115;
-    --panel: #1a1d24;
-    --panel-2: #232733;
-    --border: #2d3140;
-    --text: #e6e8ec;
-    --muted: #9aa0ab;
-    --accent: #4f8cff;
-    --accent-2: #3a6fd6;
-    --good: #3ecf8e;
-    --danger: #e5534b;
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --panel-2: #eef0f4;
+    --border: #d8dce3;
+    --text: #1c1f26;
+    --muted: #666c78;
+    --accent: #3a6fd6;
+    --accent-2: #2d5bb8;
+    --good: #1f9d6c;
+    --danger: #c4392f;
     --radius: 10px;
   }
   * { box-sizing: border-box; }
@@ -88,7 +88,7 @@
     cursor: pointer;
     font-size: 13px;
   }
-  button.danger:hover { background: rgba(229,83,75,0.15); }
+  button.danger:hover { background: rgba(196,57,47,0.12); }
   button.icon-btn {
     background: var(--panel-2);
     color: var(--text);
@@ -159,7 +159,7 @@
   .cal-day:hover { border-color: var(--accent); }
   .cal-day.empty-cell { visibility: hidden; cursor: default; }
   .cal-day.today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
-  .cal-day.has-log { background: rgba(62,207,142,0.15); border-color: var(--good); }
+  .cal-day.has-log { background: rgba(31,157,108,0.12); border-color: var(--good); }
   .cal-day .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); margin-top: 2px; }
   .modal-backdrop {
     position: fixed; inset: 0; background: rgba(0,0,0,0.6);
