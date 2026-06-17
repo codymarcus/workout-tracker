@@ -137,9 +137,10 @@
   .list-item .meta { color: var(--muted); font-size: 13px; }
   .empty { color: var(--muted); padding: 20px; text-align: center; }
   /* calendar */
-  .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-  .cal-dow { text-align: center; color: var(--muted); font-size: 12px; padding-bottom: 4px; }
+  .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 8px; }
+  .cal-header h2 { font-size: 18px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+  .cal-dow { text-align: center; color: var(--muted); font-size: 12px; padding-bottom: 4px; overflow: hidden; }
   .cal-day {
     aspect-ratio: 1;
     background: var(--panel-2);
@@ -152,7 +153,8 @@
     cursor: pointer;
     font-size: 13px;
     position: relative;
-    min-height: 50px;
+    min-height: 0;
+    min-width: 0;
   }
   .cal-day:hover { border-color: var(--accent); }
   .cal-day.empty-cell { visibility: hidden; cursor: default; }
@@ -195,6 +197,23 @@
   .small-muted { color: var(--muted); font-size: 12px; }
   footer { text-align: center; color: var(--muted); font-size: 12px; padding: 24px; }
   .hidden { display: none !important; }
+
+  @media (max-width: 480px) {
+    header { padding: 12px 14px; gap: 8px; }
+    header h1 { font-size: 17px; }
+    nav { gap: 6px; }
+    nav button { padding: 6px 10px; font-size: 13px; }
+    main { padding: 12px; }
+    .card { padding: 12px; }
+    .cal-header h2 { font-size: 16px; }
+    #prevMonth, #nextMonth { padding: 6px 10px; font-size: 13px; }
+    .cal-grid { gap: 4px; }
+    .cal-dow { font-size: 10px; }
+    .cal-day { font-size: 12px; border-radius: 6px; }
+    .cal-day .dot { width: 5px; height: 5px; }
+    .toolbar { flex-direction: column; align-items: stretch; }
+    .toolbar button { width: 100%; }
+  }
 </style>
 </head>
 <body>
