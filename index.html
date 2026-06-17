@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workout Tracker</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #1a1d24;
+    --panel-2: #232733;
+    --border: #2d3140;
+    --text: #e6e8ec;
+    --muted: #9aa0ab;
+    --accent: #4f8cff;
+    --accent-2: #3a6fd6;
+    --good: #3ecf8e;
+    --danger: #e5534b;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header h1 { font-size: 20px; margin: 0; }
+  nav { display: flex; gap: 8px; flex-wrap: wrap; }
+  nav button {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 14px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 14px;
+  }
+  nav button.active { background: var(--accent); border-color: var(--accent); }
+  nav button:hover { border-color: var(--accent); }
+  main { padding: 20px 24px; max-width: 980px; margin: 0 auto; }
+  .view { display: none; }
+  .view.active { display: block; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  h2 { margin-top: 0; }
+  button.primary {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 10px 16px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 14px;
+  }
+  button.primary:hover { background: var(--accent-2); }
+  button.secondary {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 10px 16px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 14px;
+  }
+  button.secondary:hover { border-color: var(--accent); }
+  button.danger {
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid var(--danger);
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 13px;
+  }
+  button.danger:hover { background: rgba(229,83,75,0.15); }
+  button.icon-btn {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 13px;
+  }
+  input, select {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+  input::placeholder { color: var(--muted); }
+  label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .row > div { flex: 1; min-width: 120px; }
+  .exercise-block {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+  .exercise-block h3 { margin: 0 0 10px 0; font-size: 16px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 6px 8px; font-size: 13px; }
+  th { color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); }
+  td input { width: 100%; max-width: 90px; }
+  .set-row td { padding: 4px 8px; }
+  .list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+  }
+  .list-item .name { font-weight: 600; }
+  .list-item .meta { color: var(--muted); font-size: 13px; }
+  .empty { color: var(--muted); padding: 20px; text-align: center; }
+  /* calendar */
+  .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .cal-dow { text-align: center; color: var(--muted); font-size: 12px; padding-bottom: 4px; }
+  .cal-day {
+    aspect-ratio: 1;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 13px;
+    position: relative;
+    min-height: 50px;
+  }
+  .cal-day:hover { border-color: var(--accent); }
+  .cal-day.empty-cell { visibility: hidden; cursor: default; }
+  .cal-day.today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .cal-day.has-log { background: rgba(62,207,142,0.15); border-color: var(--good); }
+  .cal-day .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); margin-top: 2px; }
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    display: none; align-items: center; justify-content: center; z-index: 50;
+    padding: 16px;
+  }
+  .modal-backdrop.active { display: flex; }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    max-width: 480px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal h3 { margin-top: 0; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .ex-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 4px 10px;
+    margin: 0 6px 6px 0;
+    font-size: 13px;
+  }
+  .ex-tag button {
+    background: none; border: none; color: var(--danger); cursor: pointer; font-size: 14px; padding: 0;
+  }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+  .small-muted { color: var(--muted); font-size: 12px; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 24px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏋️ Workout Tracker</h1>
+  <nav>
+    <button data-view="calendar" class="active">Calendar</button>
+    <button data-view="workouts">Workouts</button>
+    <button data-view="history">History</button>
+    <button data-view="data">Data</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- CALENDAR VIEW -->
+  <section class="view active" id="view-calendar">
+    <div class="card">
+      <div class="toolbar">
+        <button id="logTodayBtn" class="primary">+ Log a workout</button>
+        <span class="small-muted">Click any day to view/log/edit that day's workout</span>
+      </div>
+      <div class="cal-header">
+        <button class="secondary" id="prevMonth">‹ Prev</button>
+        <h2 id="calMonthLabel" style="margin:0;"></h2>
+        <button class="secondary" id="nextMonth">Next ›</button>
+      </div>
+      <div class="cal-grid" id="calDow"></div>
+      <div class="cal-grid" id="calGrid" style="margin-top:6px;"></div>
+    </div>
+  </section>
+
+  <!-- WORKOUTS (definitions) VIEW -->
+  <section class="view" id="view-workouts">
+    <div class="card">
+      <div class="toolbar">
+        <h2 style="margin:0;">My Workouts</h2>
+        <button class="primary" id="newWorkoutBtn">+ New Workout</button>
+      </div>
+      <div id="workoutList"></div>
+    </div>
+  </section>
+
+  <!-- HISTORY VIEW -->
+  <section class="view" id="view-history">
+    <div class="card">
+      <h2>Logged Workouts</h2>
+      <div id="historyList"></div>
+    </div>
+  </section>
+
+  <!-- DATA VIEW -->
+  <section class="view" id="view-data">
+    <div class="card">
+      <h2>Export / Import Data</h2>
+      <p class="small-muted">All data is stored locally in your browser (localStorage). Export it to back it up or move it to another browser/device.</p>
+      <div class="row">
+        <button class="primary" id="exportBtn">Export as JSON</button>
+        <button class="secondary" id="importBtn">Import JSON</button>
+        <input type="file" id="importFile" accept="application/json" class="hidden">
+      </div>
+      <div class="row">
+        <button class="danger" id="clearAllBtn">Clear all data</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>Data is stored only in this browser via localStorage.</footer>
+
+<!-- Workout Definition Modal -->
+<div class="modal-backdrop" id="workoutModal">
+  <div class="modal">
+    <h3 id="workoutModalTitle">New Workout</h3>
+    <div class="row">
+      <div>
+        <label>Workout name</label>
+        <input type="text" id="workoutNameInput" placeholder="e.g. Push Day">
+      </div>
+    </div>
+    <label>Exercises</label>
+    <div id="exerciseTagList" style="margin-bottom:8px;"></div>
+    <div class="row">
+      <div>
+        <input type="text" id="exerciseNameInput" placeholder="Exercise name e.g. Bench Press">
+      </div>
+      <div style="flex:0;">
+        <button class="secondary" id="addExerciseToWorkoutBtn">Add</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="secondary" id="cancelWorkoutBtn">Cancel</button>
+      <button class="primary" id="saveWorkoutBtn">Save Workout</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pick Workout To Log Modal -->
+<div class="modal-backdrop" id="pickWorkoutModal">
+  <div class="modal">
+    <h3>Log a Workout</h3>
+    <div class="row">
+      <div>
+        <label>Date</label>
+        <input type="date" id="logDateInput">
+      </div>
+    </div>
+    <label>Choose a workout</label>
+    <div id="pickWorkoutList"></div>
+    <div class="modal-actions">
+      <button class="secondary" id="cancelPickWorkoutBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Log Entry Modal (sets/reps/weight) -->
+<div class="modal-backdrop" id="logModal">
+  <div class="modal" style="max-width:600px;">
+    <h3 id="logModalTitle">Log Workout</h3>
+    <div class="row">
+      <div>
+        <label>Date</label>
+        <input type="date" id="logEntryDateInput">
+      </div>
+      <div>
+        <label>Workout</label>
+        <input type="text" id="logEntryWorkoutName" disabled>
+      </div>
+    </div>
+    <div id="logExercisesContainer"></div>
+    <div class="modal-actions">
+      <button class="danger" id="deleteLogBtn">Delete log</button>
+      <div style="flex:1;"></div>
+      <button class="secondary" id="cancelLogBtn">Cancel</button>
+      <button class="primary" id="saveLogBtn">Save Log</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Modal (generic) -->
+<div class="modal-backdrop" id="confirmModal">
+  <div class="modal" style="max-width:380px;">
+    <h3 id="confirmModalTitle">Are you sure?</h3>
+    <p id="confirmModalText" class="small-muted"></p>
+    <div class="modal-actions">
+      <button class="secondary" id="confirmCancelBtn">Cancel</button>
+      <button class="danger" id="confirmOkBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
