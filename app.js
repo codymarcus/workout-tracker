@@ -276,7 +276,7 @@ function renderExerciseTagList() {
     <div class="exercise-def-row">
       <div>
         <span class="name">${escapeHtml(ex.name)}</span>
-        <span class="type-badge">${TYPE_LABELS[ex.type] || 'Normal'}${ex.type === 'barbell' ? ` · bar ${barWeightOf(ex)}lb` : ''}</span>
+        <span class="type-badge type-${ex.type}">${TYPE_LABELS[ex.type] || 'Normal'}${ex.type === 'barbell' ? ` · bar ${barWeightOf(ex)}lb` : ''}</span>
       </div>
       <div style="display:flex; gap:6px;">
         <button class="icon-btn" type="button" data-edit-draft="${i}">Edit</button>
@@ -470,7 +470,7 @@ function renderSessionModal(workout) {
 function createExerciseCard(ex, workout) {
   const st = activeSession.exStates[ex.id];
   const card = document.createElement('div');
-  card.className = 'exercise-card';
+  card.className = `exercise-card type-${ex.type}`;
   card.dataset.exerciseId = ex.id;
 
   const header = document.createElement('div');
@@ -478,11 +478,11 @@ function createExerciseCard(ex, workout) {
   header.innerHTML = `
     <div>
       <span class="name">${escapeHtml(ex.name)}</span>
-      <span class="type-badge">${TYPE_LABELS[ex.type] || 'Normal'}</span>
+      <span class="type-badge type-${ex.type}">${TYPE_LABELS[ex.type] || 'Normal'}</span>
     </div>
   `;
   const toggleBtn = document.createElement('button');
-  toggleBtn.className = 'icon-btn';
+  toggleBtn.className = 'exercise-toggle-btn';
   toggleBtn.type = 'button';
   header.appendChild(toggleBtn);
   card.appendChild(header);
@@ -493,6 +493,7 @@ function createExerciseCard(ex, workout) {
 
   function setToggleLabel() {
     toggleBtn.textContent = st.opened ? 'Hide' : (st.sets.length ? 'Continue Exercise' : 'Start Exercise');
+    toggleBtn.classList.toggle('is-open', st.opened);
   }
 
   function refreshBody() {
@@ -531,13 +532,13 @@ function renderCardBody(ex, st, body, refreshBody) {
   const histDiv = document.createElement('div');
   histDiv.className = 'history-block';
   if (history.length === 0) {
-    histDiv.innerHTML = '<div class="small-muted">No previous history for this exercise yet.</div>';
+    histDiv.innerHTML = '<div class="label">Recent</div><div class="small-muted">No previous history for this exercise yet.</div>';
   } else {
-    const lines = history.map(h => `${h.date}: ${h.sets.map(s => formatSetSummary(ex.type, s)).join(', ')}`);
+    const lines = history.map(h => `<span class="hdate">${escapeHtml(h.date)}</span> ${escapeHtml(h.sets.map(s => formatSetSummary(ex.type, s)).join(', '))}`);
     const trendVals = [...history].reverse().map(h => trendMetric(ex.type, h.sets));
     histDiv.innerHTML = `
-      <div class="small-muted" style="margin-bottom:4px;">Recent history</div>
-      ${lines.map(l => `<div class="history-line">${escapeHtml(l)}</div>`).join('')}
+      <div class="label">Recent</div>
+      ${lines.map(l => `<div class="history-line">${l}</div>`).join('')}
       ${trendVals.length > 1 ? `<div class="trend-line">Trend: ${trendVals.map(escapeHtml).join(' → ')}</div>` : ''}
     `;
   }
@@ -619,21 +620,18 @@ function buildSetRow(ex, st, i, refreshBody) {
 
 function buildStandardAddControls(ex, st, history, refreshBody) {
   const wrap = document.createElement('div');
-  wrap.style.display = 'flex';
-  wrap.style.gap = '8px';
-  wrap.style.alignItems = 'flex-end';
-  wrap.style.flexWrap = 'wrap';
+  wrap.className = 'add-set-fields';
 
   const lastSet = lastSetFor(st, history);
   const decomposed = lastSet ? decomposeSet(ex, lastSet) : {};
 
-  let fieldsHtml = `<div><label>Reps</label><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></div>`;
+  let fieldsHtml = `<div class="field"><label>Reps</label><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></div>`;
   if (ex.type === 'barbell') {
-    fieldsHtml += `<div><label>Plates/side</label><input type="number" class="extra-input" min="0" step="any" value="${decomposed.perSide ?? ''}"></div>`;
+    fieldsHtml += `<div class="field"><label>Plates/side</label><input type="number" class="extra-input" min="0" step="any" value="${decomposed.perSide ?? ''}"></div>`;
   } else if (ex.type === 'dumbbell') {
-    fieldsHtml += `<div><label>Weight/DB</label><input type="number" class="extra-input" min="0" step="any" value="${decomposed.perDb ?? ''}"></div>`;
+    fieldsHtml += `<div class="field"><label>Weight/DB</label><input type="number" class="extra-input" min="0" step="any" value="${decomposed.perDb ?? ''}"></div>`;
   } else if (ex.type === 'normal') {
-    fieldsHtml += `<div><label>Weight</label><input type="number" class="extra-input" min="0" step="any" value="${decomposed.weight ?? ''}"></div>`;
+    fieldsHtml += `<div class="field"><label>Weight</label><input type="number" class="extra-input" min="0" step="any" value="${decomposed.weight ?? ''}"></div>`;
   }
   // bodyweight: reps only, no extra field
 
@@ -660,17 +658,14 @@ function buildStandardAddControls(ex, st, history, refreshBody) {
 
 function buildTimedAddControls(ex, st, history, refreshBody) {
   const wrap = document.createElement('div');
-  wrap.style.display = 'flex';
-  wrap.style.gap = '8px';
-  wrap.style.alignItems = 'flex-end';
-  wrap.style.flexWrap = 'wrap';
+  wrap.className = 'add-set-fields';
 
   const lastSet = lastSetFor(st, history);
   const decomposed = lastSet ? decomposeSet(ex, lastSet) : {};
   const timer = activeSession.timers[ex.id];
 
   wrap.innerHTML = `
-    <div>
+    <div class="field">
       <label>Timer</label>
       <div style="display:flex; gap:8px; align-items:center;">
         <span class="timer-display">0:00</span>
@@ -678,7 +673,7 @@ function buildTimedAddControls(ex, st, history, refreshBody) {
         <button type="button" class="secondary stop-timer-btn hidden">Stop</button>
       </div>
     </div>
-    <div>
+    <div class="field">
       <label>Or enter seconds manually</label>
       <input type="number" class="seconds-input" min="0" value="${decomposed.seconds ?? ''}">
     </div>
