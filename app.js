@@ -330,11 +330,11 @@ function renderWorkoutList() {
   }
   container.innerHTML = state.workouts.map(w => `
     <div class="list-item">
-      <div>
+      <div class="info">
         <div class="name">${escapeHtml(w.name)}</div>
         <div class="meta">${w.exercises.map(e => `${escapeHtml(e.name)} (${TYPE_LABELS[e.type] || 'Normal'})`).join(', ')}</div>
       </div>
-      <div style="display:flex; gap:8px;">
+      <div class="actions">
         <button class="icon-btn" data-edit="${w.id}">Edit</button>
         <button class="danger" data-del="${w.id}">Delete</button>
       </div>
@@ -390,7 +390,7 @@ function renderPickWorkoutList() {
   const container = document.getElementById('pickWorkoutList');
   container.innerHTML = state.workouts.map(w => `
     <div class="list-item" style="cursor:pointer;" data-pick="${w.id}">
-      <div>
+      <div class="info">
         <div class="name">${escapeHtml(w.name)}</div>
         <div class="meta">${w.exercises.map(e => escapeHtml(e.name)).join(', ')}</div>
       </div>
@@ -544,13 +544,16 @@ function renderCardBody(ex, st, body, refreshBody) {
   body.appendChild(histDiv);
 
   if (st.sets.length > 0) {
+    const scroll = document.createElement('div');
+    scroll.className = 'table-scroll';
     const table = document.createElement('table');
     table.className = 'set-table';
     table.innerHTML = `<thead><tr><th style="width:30px;">#</th>${setColumnHeaders(ex.type)}<th></th></tr></thead>`;
     const tbody = document.createElement('tbody');
     st.sets.forEach((set, i) => tbody.appendChild(buildSetRow(ex, st, i, refreshBody)));
     table.appendChild(tbody);
-    body.appendChild(table);
+    scroll.appendChild(table);
+    body.appendChild(scroll);
   }
 
   const addRow = document.createElement('div');
@@ -879,11 +882,11 @@ function renderHistoryList() {
     }).join(' • ');
     return `
       <div class="list-item">
-        <div>
+        <div class="info">
           <div class="name">${log.date} — ${escapeHtml(log.workoutName)}</div>
           <div class="meta">${summary}</div>
         </div>
-        <div style="display:flex; gap:8px;">
+        <div class="actions">
           <button class="icon-btn" data-edit-log="${log.id}">Edit</button>
           <button class="danger" data-del-log="${log.id}">Delete</button>
         </div>

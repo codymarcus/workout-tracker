@@ -16,38 +16,56 @@
     --accent-2: #2d5bb8;
     --good: #1f9d6c;
     --danger: #c4392f;
-    --radius: 10px;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 1px 2px rgba(20,24,32,0.04), 0 4px 16px rgba(20,24,32,0.06);
+    --shadow-lg: 0 8px 24px rgba(20,24,32,0.12);
+    --nav-h: 60px;
   }
   * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; max-width: 100%; }
   body {
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: var(--bg);
     color: var(--text);
+    -webkit-tap-highlight-color: transparent;
   }
+  button, input, select { font-family: inherit; }
+  button { transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease; }
+  button:active { transform: scale(0.97); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 24px;
+    padding: 14px 24px;
     border-bottom: 1px solid var(--border);
     background: var(--panel);
     flex-wrap: wrap;
     gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 30;
   }
-  header h1 { font-size: 20px; margin: 0; }
+  header h1 { font-size: 19px; margin: 0; }
   nav { display: flex; gap: 8px; flex-wrap: wrap; }
   nav button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     background: var(--panel-2);
     color: var(--text);
     border: 1px solid var(--border);
     padding: 8px 14px;
-    border-radius: var(--radius);
+    border-radius: var(--radius-sm);
     cursor: pointer;
     font-size: 14px;
   }
-  nav button.active { background: var(--accent); border-color: var(--accent); }
+  nav button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
   nav button:hover { border-color: var(--accent); }
+  nav .nav-icon { font-size: 16px; line-height: 1; }
+  nav .nav-label { line-height: 1; }
   main { padding: 20px 24px; max-width: 980px; margin: 0 auto; }
   .view { display: none; }
   .view.active { display: block; }
@@ -57,24 +75,26 @@
     border-radius: var(--radius);
     padding: 16px;
     margin-bottom: 16px;
+    box-shadow: var(--shadow);
   }
   h2 { margin-top: 0; }
   button.primary {
     background: var(--accent);
     color: #fff;
     border: none;
-    padding: 10px 16px;
-    border-radius: var(--radius);
+    padding: 11px 18px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     font-size: 14px;
+    font-weight: 600;
   }
   button.primary:hover { background: var(--accent-2); }
   button.secondary {
     background: var(--panel-2);
     color: var(--text);
     border: 1px solid var(--border);
-    padding: 10px 16px;
-    border-radius: var(--radius);
+    padding: 11px 18px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     font-size: 14px;
   }
@@ -83,8 +103,8 @@
     background: transparent;
     color: var(--danger);
     border: 1px solid var(--danger);
-    padding: 6px 10px;
-    border-radius: var(--radius);
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     font-size: 13px;
   }
@@ -93,8 +113,8 @@
     background: var(--panel-2);
     color: var(--text);
     border: 1px solid var(--border);
-    padding: 6px 10px;
-    border-radius: var(--radius);
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     font-size: 13px;
   }
@@ -102,14 +122,17 @@
     background: var(--panel-2);
     color: var(--text);
     border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    padding: 10px 11px;
     font-size: 14px;
+    min-height: 40px;
+    width: 100%;
+    min-width: 0;
   }
   input::placeholder { color: var(--muted); }
-  label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
+  label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; font-weight: 500; }
   .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-  .row > div { flex: 1; min-width: 120px; }
+  .row > div { flex: 1 1 120px; min-width: 0; }
   .exercise-block {
     background: var(--panel-2);
     border: 1px solid var(--border);
@@ -120,22 +143,26 @@
   .exercise-block h3 { margin: 0 0 10px 0; font-size: 16px; }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 6px 8px; font-size: 13px; }
-  th { color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); white-space: nowrap; }
   td input { width: 100%; max-width: 90px; }
   .set-row td { padding: 4px 8px; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -2px; padding: 0 2px; }
   .list-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 12px;
+    gap: 10px;
+    padding: 12px 14px;
     background: var(--panel-2);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     margin-bottom: 8px;
   }
+  .list-item .info { min-width: 0; flex: 1; overflow-wrap: anywhere; }
   .list-item .name { font-weight: 600; }
-  .list-item .meta { color: var(--muted); font-size: 13px; }
-  .empty { color: var(--muted); padding: 20px; text-align: center; }
+  .list-item .meta { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+  .list-item .actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .empty { color: var(--muted); padding: 32px 16px; text-align: center; }
   /* calendar */
   .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 8px; }
   .cal-header h2 { font-size: 18px; }
@@ -162,7 +189,7 @@
   .cal-day.has-log { background: rgba(31,157,108,0.12); border-color: var(--good); }
   .cal-day .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); margin-top: 2px; }
   .modal-backdrop {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    position: fixed; inset: 0; background: rgba(20,24,32,0.55);
     display: none; align-items: center; justify-content: center; z-index: 50;
     padding: 16px;
   }
@@ -171,27 +198,30 @@
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 20px;
     max-width: 480px;
     width: 100%;
     max-height: 90vh;
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .modal h3 {
+    margin: 0;
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .modal-body {
+    padding: 16px 20px;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    flex: 1;
+    min-height: 0;
   }
-  .modal h3 { margin-top: 0; }
-  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-  .ex-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 4px 10px;
-    margin: 0 6px 6px 0;
-    font-size: 13px;
-  }
-  .ex-tag button {
-    background: none; border: none; color: var(--danger); cursor: pointer; font-size: 14px; padding: 0;
+  .modal-actions {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 14px 20px; border-top: 1px solid var(--border); flex-shrink: 0;
   }
   .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
   .small-muted { color: var(--muted); font-size: 12px; }
@@ -213,38 +243,70 @@
   /* Session modal: exercise cards */
   .exercise-card {
     border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 10px 12px; margin-bottom: 10px; background: var(--panel-2);
+    padding: 12px 14px; margin-bottom: 10px; background: var(--panel-2);
   }
   .exercise-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
   .exercise-card-header .name { font-weight: 600; }
+  .exercise-card-header button { min-height: 36px; }
   .exercise-card-body { margin-top: 10px; }
   .history-block {
-    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
-    padding: 8px 10px; margin-bottom: 10px; font-size: 13px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 10px 12px; margin-bottom: 10px; font-size: 13px;
   }
   .history-line { color: var(--text); }
   .trend-line { color: var(--muted); margin-top: 4px; }
-  .add-set-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin-top: 8px; }
+  .add-set-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 8px; }
   .add-set-row > div { display: flex; flex-direction: column; }
   .add-set-row label { margin-bottom: 2px; }
-  .timer-display { font-size: 20px; font-weight: 700; font-family: monospace; min-width: 70px; }
+  .add-set-row input { width: 90px; }
+  .timer-display { font-size: 22px; font-weight: 700; font-family: monospace; min-width: 70px; }
   .set-table input { width: 100%; max-width: 90px; }
+  .set-table { min-width: 220px; }
 
-  @media (max-width: 480px) {
-    header { padding: 12px 14px; gap: 8px; }
+  @media (max-width: 600px) {
+    body { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
+    header { padding: 12px 16px; justify-content: center; }
     header h1 { font-size: 17px; }
-    nav { gap: 6px; }
-    nav button { padding: 6px 10px; font-size: 13px; }
-    main { padding: 12px; }
-    .card { padding: 12px; }
+    main { padding: 14px; }
+    .card { padding: 14px; }
     .cal-header h2 { font-size: 16px; }
-    #prevMonth, #nextMonth { padding: 6px 10px; font-size: 13px; }
+    #prevMonth, #nextMonth { padding: 8px 12px; font-size: 13px; min-height: 40px; }
     .cal-grid { gap: 4px; }
     .cal-dow { font-size: 10px; }
     .cal-day { font-size: 12px; border-radius: 6px; }
     .cal-day .dot { width: 5px; height: 5px; }
     .toolbar { flex-direction: column; align-items: stretch; }
-    .toolbar button { width: 100%; }
+    .toolbar button { width: 100%; min-height: 46px; }
+    .toolbar .small-muted { text-align: center; }
+    .modal-backdrop { padding: 0; align-items: flex-end; }
+    .modal { max-width: 100%; width: 100%; border-radius: var(--radius) var(--radius) 0 0; max-height: 85vh; }
+    .list-item .actions { flex-direction: column; }
+
+    /* bottom tab bar nav */
+    nav {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      z-index: 40;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      box-shadow: 0 -2px 12px rgba(20,24,32,0.08);
+      padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+      gap: 2px;
+      justify-content: space-around;
+    }
+    nav button {
+      flex: 1;
+      flex-direction: column;
+      gap: 2px;
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 6px 2px;
+      font-size: 11px;
+      min-height: 48px;
+    }
+    nav button.active { background: var(--panel-2); color: var(--accent); }
+    nav .nav-icon { font-size: 19px; }
   }
 </style>
 </head>
@@ -253,10 +315,10 @@
 <header>
   <h1>🏋️ Workout Tracker</h1>
   <nav>
-    <button data-view="calendar" class="active">Calendar</button>
-    <button data-view="workouts">Workouts</button>
-    <button data-view="history">History</button>
-    <button data-view="data">Data</button>
+    <button data-view="calendar" class="active"><span class="nav-icon">📅</span><span class="nav-label">Calendar</span></button>
+    <button data-view="workouts"><span class="nav-icon">🏋️</span><span class="nav-label">Workouts</span></button>
+    <button data-view="history"><span class="nav-icon">📜</span><span class="nav-label">History</span></button>
+    <button data-view="data"><span class="nav-icon">💾</span><span class="nav-label">Data</span></button>
   </nav>
 </header>
 
@@ -322,37 +384,39 @@
 <div class="modal-backdrop" id="workoutModal">
   <div class="modal" style="max-width:560px;">
     <h3 id="workoutModalTitle">New Workout</h3>
-    <div class="row">
-      <div>
-        <label>Workout name</label>
-        <input type="text" id="workoutNameInput" placeholder="e.g. Push Day">
+    <div class="modal-body">
+      <div class="row">
+        <div>
+          <label>Workout name</label>
+          <input type="text" id="workoutNameInput" placeholder="e.g. Push Day">
+        </div>
       </div>
+      <label>Add an exercise</label>
+      <div class="row">
+        <div>
+          <input type="text" id="exerciseNameInput" placeholder="Exercise name e.g. Bench Press">
+        </div>
+        <div>
+          <select id="exerciseTypeInput">
+            <option value="normal">Normal (enter weight)</option>
+            <option value="barbell">Barbell (per side)</option>
+            <option value="dumbbell">Double Dumbbell (per dumbbell)</option>
+            <option value="bodyweight">Bodyweight (no weight)</option>
+            <option value="timed">Timed (duration)</option>
+          </select>
+        </div>
+        <div id="exerciseBarWeightContainer" class="hidden">
+          <input type="number" id="exerciseBarWeightInput" placeholder="Bar weight (lb)" value="45" min="0" step="any">
+        </div>
+      </div>
+      <div class="row">
+        <div style="flex:0;">
+          <button class="secondary" id="addExerciseToWorkoutBtn" type="button">+ Add Exercise</button>
+        </div>
+      </div>
+      <label>Exercises in this workout</label>
+      <div id="exerciseTagList" style="margin-bottom:8px;"></div>
     </div>
-    <label>Add an exercise</label>
-    <div class="row">
-      <div>
-        <input type="text" id="exerciseNameInput" placeholder="Exercise name e.g. Bench Press">
-      </div>
-      <div>
-        <select id="exerciseTypeInput">
-          <option value="normal">Normal (enter weight)</option>
-          <option value="barbell">Barbell (per side)</option>
-          <option value="dumbbell">Double Dumbbell (per dumbbell)</option>
-          <option value="bodyweight">Bodyweight (no weight)</option>
-          <option value="timed">Timed (duration)</option>
-        </select>
-      </div>
-      <div id="exerciseBarWeightContainer" class="hidden">
-        <input type="number" id="exerciseBarWeightInput" placeholder="Bar weight (lb)" value="45" min="0" step="any">
-      </div>
-    </div>
-    <div class="row">
-      <div style="flex:0;">
-        <button class="secondary" id="addExerciseToWorkoutBtn" type="button">+ Add Exercise</button>
-      </div>
-    </div>
-    <label>Exercises in this workout</label>
-    <div id="exerciseTagList" style="margin-bottom:8px;"></div>
     <div class="modal-actions">
       <button class="secondary" id="cancelWorkoutBtn">Cancel</button>
       <button class="primary" id="saveWorkoutBtn">Save Workout</button>
@@ -364,14 +428,16 @@
 <div class="modal-backdrop" id="pickWorkoutModal">
   <div class="modal">
     <h3>Start Workout</h3>
-    <div class="row">
-      <div>
-        <label>Date</label>
-        <input type="date" id="logDateInput">
+    <div class="modal-body">
+      <div class="row">
+        <div>
+          <label>Date</label>
+          <input type="date" id="logDateInput">
+        </div>
       </div>
+      <label>Choose a workout</label>
+      <div id="pickWorkoutList"></div>
     </div>
-    <label>Choose a workout</label>
-    <div id="pickWorkoutList"></div>
     <div class="modal-actions">
       <button class="secondary" id="cancelPickWorkoutBtn">Cancel</button>
     </div>
@@ -382,17 +448,19 @@
 <div class="modal-backdrop" id="sessionModal">
   <div class="modal" style="max-width:640px;">
     <h3 id="sessionModalTitle">Workout</h3>
-    <div class="row">
-      <div>
-        <label>Date</label>
-        <input type="date" id="sessionDateInput">
+    <div class="modal-body">
+      <div class="row">
+        <div>
+          <label>Date</label>
+          <input type="date" id="sessionDateInput">
+        </div>
+        <div>
+          <label>Workout</label>
+          <input type="text" id="sessionWorkoutName" disabled>
+        </div>
       </div>
-      <div>
-        <label>Workout</label>
-        <input type="text" id="sessionWorkoutName" disabled>
-      </div>
+      <div id="sessionExercisesContainer"></div>
     </div>
-    <div id="sessionExercisesContainer"></div>
     <div class="modal-actions">
       <button class="danger" id="deleteSessionBtn">Delete log</button>
       <div style="flex:1;"></div>
@@ -406,7 +474,9 @@
 <div class="modal-backdrop" id="confirmModal">
   <div class="modal" style="max-width:380px;">
     <h3 id="confirmModalTitle">Are you sure?</h3>
-    <p id="confirmModalText" class="small-muted"></p>
+    <div class="modal-body">
+      <p id="confirmModalText" class="small-muted" style="margin:0;"></p>
+    </div>
     <div class="modal-actions">
       <button class="secondary" id="confirmCancelBtn">Cancel</button>
       <button class="danger" id="confirmOkBtn">Confirm</button>
