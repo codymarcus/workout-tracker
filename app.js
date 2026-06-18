@@ -450,16 +450,19 @@ function stopAllTimers() {
 
 function openSessionModal(workout, date, existingLog) {
   stopAllTimers();
-  activeSession = { date, workoutId: workout.id, existingLogId: existingLog ? existingLog.id : null, exStates: {}, timers: {} };
+  activeSession = {
+    date, workoutId: workout.id, existingLogId: existingLog ? existingLog.id : null,
+    exStates: {}, timers: {}, activeExerciseId: null,
+    baseTitle: existingLog ? 'Edit Logged Workout' : 'Start Workout',
+  };
 
   workout.exercises.forEach(ex => {
     const exLog = existingLog && existingLog.exerciseLogs.find(el => el.exerciseId === ex.id);
     const sets = exLog ? exLog.sets.map(s => ({ ...s })) : [];
-    activeSession.exStates[ex.id] = { sets, opened: sets.length > 0 };
+    activeSession.exStates[ex.id] = { sets };
     activeSession.timers[ex.id] = { running: false, startTs: null, intervalId: null };
   });
 
-  document.getElementById('sessionModalTitle').textContent = existingLog ? 'Edit Logged Workout' : 'Start Workout';
   document.getElementById('sessionDateInput').value = date;
   document.getElementById('sessionWorkoutName').value = workout.name;
   document.getElementById('deleteSessionBtn').classList.toggle('hidden', !existingLog);
@@ -470,285 +473,295 @@ function openSessionModal(workout, date, existingLog) {
 
 function renderSessionModal(workout) {
   const container = document.getElementById('sessionExercisesContainer');
+  const metaRow = document.getElementById('sessionMetaRow');
+  const backBtn = document.getElementById('sessionBackBtn');
+  const titleSpan = document.getElementById('sessionModalTitle');
   container.innerHTML = '';
-  workout.exercises.forEach(ex => {
-    container.appendChild(createExerciseCard(ex, workout));
-  });
-}
 
-function createExerciseCard(ex, workout) {
-  const st = activeSession.exStates[ex.id];
-  const card = document.createElement('div');
-  card.className = `exercise-card type-${ex.type}`;
-  card.dataset.exerciseId = ex.id;
+  const activeEx = activeSession.activeExerciseId
+    ? workout.exercises.find(e => e.id === activeSession.activeExerciseId)
+    : null;
 
-  const header = document.createElement('div');
-  header.className = 'exercise-card-header';
-  header.innerHTML = `
-    <div>
-      <span class="name">${escapeHtml(ex.name)}</span>
-      <span class="type-badge type-${ex.type}">${TYPE_LABELS[ex.type] || 'Normal'}</span>
-    </div>
-  `;
-  const toggleBtn = document.createElement('button');
-  toggleBtn.className = 'exercise-toggle-btn';
-  toggleBtn.type = 'button';
-  header.appendChild(toggleBtn);
-  card.appendChild(header);
-
-  const body = document.createElement('div');
-  body.className = 'exercise-card-body';
-  card.appendChild(body);
-
-  function setToggleLabel() {
-    toggleBtn.textContent = st.opened ? 'Hide' : (st.sets.length ? 'Continue Exercise' : 'Start Exercise');
-    toggleBtn.classList.toggle('is-open', st.opened);
-  }
-
-  function refreshBody() {
-    setToggleLabel();
-    body.style.display = st.opened ? 'block' : 'none';
-    body.innerHTML = '';
-    if (!st.opened) return;
-    renderCardBody(ex, st, body, refreshBody);
-  }
-
-  toggleBtn.addEventListener('click', () => {
-    const timer = activeSession.timers[ex.id];
-    if (st.opened && timer.running) {
-      alert('Stop the timer for this exercise before hiding it.');
-      return;
-    }
-    st.opened = !st.opened;
-    refreshBody();
-  });
-
-  refreshBody();
-  return card;
-}
-
-function setColumnHeaders(type) {
-  if (type === 'timed') return '<th>Time</th>';
-  if (type === 'bodyweight') return '<th>Reps</th>';
-  if (type === 'barbell') return '<th>Reps</th><th>Plates/side</th><th>Total</th>';
-  if (type === 'dumbbell') return '<th>Reps</th><th>Weight/DB</th><th>Total</th>';
-  return '<th>Reps</th><th>Weight</th>';
-}
-
-function renderCardBody(ex, st, body, refreshBody) {
-  const history = getExerciseHistory(ex.id, activeSession.date, activeSession.existingLogId);
-
-  const histDiv = document.createElement('div');
-  histDiv.className = 'history-block';
-  if (history.length === 0) {
-    histDiv.innerHTML = '<div class="label">Recent</div><div class="small-muted">No previous history for this exercise yet.</div>';
+  if (activeEx) {
+    metaRow.classList.add('hidden');
+    backBtn.classList.remove('hidden');
+    titleSpan.textContent = activeEx.name;
+    container.appendChild(renderExerciseDetail(activeEx, workout));
   } else {
-    const lines = history.map(h => `<span class="hdate">${escapeHtml(h.date)}</span> ${escapeHtml(h.sets.map(s => formatSetSummary(ex, s)).join(', '))}`);
-    const trendVals = [...history].reverse().map(h => trendMetric(ex.type, h.sets));
-    histDiv.innerHTML = `
-      <div class="label">Recent</div>
-      ${lines.map(l => `<div class="history-line">${l}</div>`).join('')}
-      ${trendVals.length > 1 ? `<div class="trend-line">Trend: ${trendVals.map(escapeHtml).join(' → ')}</div>` : ''}
-    `;
+    metaRow.classList.remove('hidden');
+    backBtn.classList.add('hidden');
+    titleSpan.textContent = activeSession.baseTitle;
+    container.appendChild(renderExerciseListView(workout));
   }
-  body.appendChild(histDiv);
-
-  if (st.sets.length > 0) {
-    const scroll = document.createElement('div');
-    scroll.className = 'table-scroll';
-    const table = document.createElement('table');
-    table.className = 'set-table';
-    table.innerHTML = `<thead><tr><th style="width:30px;">#</th>${setColumnHeaders(ex.type)}<th></th></tr></thead>`;
-    const tbody = document.createElement('tbody');
-    st.sets.forEach((set, i) => tbody.appendChild(buildSetRow(ex, st, i, refreshBody)));
-    table.appendChild(tbody);
-    scroll.appendChild(table);
-    body.appendChild(scroll);
-  }
-
-  const addRow = document.createElement('div');
-  addRow.className = 'add-set-row';
-  if (ex.type === 'timed') {
-    addRow.appendChild(buildTimedAddControls(ex, st, history, refreshBody));
-  } else {
-    addRow.appendChild(buildStandardAddControls(ex, st, history, refreshBody));
-  }
-  body.appendChild(addRow);
 }
 
-function buildSetRow(ex, st, i, refreshBody) {
-  const set = st.sets[i];
-  const decomposed = decomposeSet(ex, set);
-  const tr = document.createElement('tr');
-  tr.className = 'set-row';
-
-  function updateFromInputs(getVals) {
-    const vals = getVals();
-    Object.assign(set, composeSet(ex, vals));
-  }
-
-  let inputsHtml = '';
-  if (ex.type === 'timed') {
-    inputsHtml = `<td><input type="number" class="seconds-input" min="0" value="${decomposed.seconds ?? ''}"> sec</td>`;
-  } else if (ex.type === 'bodyweight') {
-    inputsHtml = `<td><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></td>`;
-  } else if (ex.type === 'barbell') {
-    inputsHtml = `<td><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></td><td><input type="number" class="extra-input" min="0" step="any" value="${decomposed.perSide ?? ''}"></td><td class="total-cell">${roundTo(set.weight)} lb</td>`;
-  } else if (ex.type === 'dumbbell') {
-    inputsHtml = `<td><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></td><td><input type="number" class="extra-input" min="0" step="any" value="${decomposed.perDb ?? ''}"></td><td class="total-cell">${roundTo(set.weight)} lb</td>`;
-  } else {
-    inputsHtml = `<td><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></td><td><input type="number" class="extra-input" min="0" step="any" value="${decomposed.weight ?? ''}"></td>`;
-  }
-
-  tr.innerHTML = `<td>${i + 1}</td>${inputsHtml}<td><button type="button" class="remove-set-btn" title="Remove set" style="background:none;border:none;color:var(--danger);cursor:pointer;">✕</button></td>`;
-
-  const repsInput = tr.querySelector('.reps-input');
-  const extraInput = tr.querySelector('.extra-input');
-  const secondsInput = tr.querySelector('.seconds-input');
-  const totalCell = tr.querySelector('.total-cell');
-
-  function readVals() {
-    if (ex.type === 'timed') return { seconds: secondsInput.value };
-    if (ex.type === 'bodyweight') return { reps: repsInput.value };
-    if (ex.type === 'barbell') return { reps: repsInput.value, perSide: extraInput.value };
-    if (ex.type === 'dumbbell') return { reps: repsInput.value, perDb: extraInput.value };
-    return { reps: repsInput.value, weight: extraInput.value };
-  }
-
-  [repsInput, extraInput, secondsInput].forEach(inp => {
-    if (!inp) return;
-    inp.addEventListener('input', () => {
-      updateFromInputs(readVals);
-      if (totalCell) totalCell.textContent = `${roundTo(set.weight)} lb`;
-    });
-  });
-
-  tr.querySelector('.remove-set-btn').addEventListener('click', () => {
-    st.sets.splice(i, 1);
-    refreshBody();
-  });
-
-  return tr;
-}
-
-function buildStandardAddControls(ex, st, history, refreshBody) {
+// Step 1: pick which exercise to log. Exercises with sets already logged
+// this session sink to the bottom so the remaining ones stay at the top.
+function renderExerciseListView(workout) {
   const wrap = document.createElement('div');
-  wrap.className = 'add-set-fields';
+  wrap.className = 'exercise-list';
 
-  const lastSet = lastSetFor(st, history);
-  const decomposed = lastSet ? decomposeSet(ex, lastSet) : {};
+  const ordered = workout.exercises
+    .map((ex, i) => ({ ex, i, done: activeSession.exStates[ex.id].sets.length > 0 }))
+    .sort((a, b) => (a.done === b.done ? a.i - b.i : (a.done ? 1 : -1)));
 
-  let fieldsHtml = `<div class="field"><label>Reps</label><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></div>`;
-  if (ex.type === 'barbell') {
-    fieldsHtml += `<div class="field"><label>Plates/side</label><input type="number" class="extra-input" min="0" step="any" value="${decomposed.perSide ?? ''}"></div>`;
-    fieldsHtml += `<div class="field total-field"><label>Total</label><div class="total-display"></div></div>`;
-  } else if (ex.type === 'dumbbell') {
-    fieldsHtml += `<div class="field"><label>Weight/DB</label><input type="number" class="extra-input" min="0" step="any" value="${decomposed.perDb ?? ''}"></div>`;
-    fieldsHtml += `<div class="field total-field"><label>Total</label><div class="total-display"></div></div>`;
-  } else if (ex.type === 'normal') {
-    fieldsHtml += `<div class="field"><label>Weight</label><input type="number" class="extra-input" min="0" step="any" value="${decomposed.weight ?? ''}"></div>`;
-  }
-  // bodyweight: reps only, no extra field
-
-  wrap.innerHTML = fieldsHtml;
-  const addBtn = document.createElement('button');
-  addBtn.className = 'primary';
-  addBtn.type = 'button';
-  addBtn.textContent = '+ Add Set';
-  wrap.appendChild(addBtn);
-
-  const extraInputEl = wrap.querySelector('.extra-input');
-  const totalDisplay = wrap.querySelector('.total-display');
-  function updateTotalDisplay() {
-    if (!totalDisplay) return;
-    const v = Number(extraInputEl.value) || 0;
-    const total = ex.type === 'barbell' ? v * 2 + barWeightOf(ex) : v * 2;
-    totalDisplay.textContent = `${roundTo(total)} lb`;
-  }
-  if (totalDisplay) {
-    updateTotalDisplay();
-    extraInputEl.addEventListener('input', updateTotalDisplay);
-  }
-
-  addBtn.addEventListener('click', () => {
-    const repsInput = wrap.querySelector('.reps-input');
-    const extraInput = wrap.querySelector('.extra-input');
-    const vals = { reps: repsInput.value };
-    if (ex.type === 'barbell') vals.perSide = extraInput.value;
-    else if (ex.type === 'dumbbell') vals.perDb = extraInput.value;
-    else if (ex.type === 'normal') vals.weight = extraInput.value;
-    st.sets.push(composeSet(ex, vals));
-    refreshBody();
-  });
-
-  return wrap;
-}
-
-function buildTimedAddControls(ex, st, history, refreshBody) {
-  const wrap = document.createElement('div');
-  wrap.className = 'add-set-fields';
-
-  const lastSet = lastSetFor(st, history);
-  const decomposed = lastSet ? decomposeSet(ex, lastSet) : {};
-  const timer = activeSession.timers[ex.id];
-
-  wrap.innerHTML = `
-    <div class="field">
-      <label>Timer</label>
-      <div style="display:flex; gap:8px; align-items:center;">
-        <span class="timer-display">0:00</span>
-        <button type="button" class="secondary start-timer-btn">Start</button>
-        <button type="button" class="secondary stop-timer-btn hidden">Stop</button>
+  ordered.forEach(({ ex, done }) => {
+    const st = activeSession.exStates[ex.id];
+    const row = document.createElement('div');
+    row.className = `exercise-list-row type-${ex.type}${done ? ' is-done' : ''}`;
+    row.innerHTML = `
+      <div>
+        <div class="name">${escapeHtml(ex.name)} <span class="type-badge type-${ex.type}">${TYPE_LABELS[ex.type] || 'Normal'}</span></div>
+        <div class="status${done ? ' done' : ''}">${done ? `✓ ${st.sets.length} set${st.sets.length > 1 ? 's' : ''} logged` : 'Not started'}</div>
       </div>
-    </div>
-    <div class="field">
-      <label>Or enter seconds manually</label>
-      <input type="number" class="seconds-input" min="0" value="${decomposed.seconds ?? ''}">
-    </div>
-  `;
-  const addBtn = document.createElement('button');
-  addBtn.className = 'primary';
-  addBtn.type = 'button';
-  addBtn.textContent = '+ Add Set';
-  wrap.appendChild(addBtn);
-
-  const display = wrap.querySelector('.timer-display');
-  const startBtn = wrap.querySelector('.start-timer-btn');
-  const stopBtn = wrap.querySelector('.stop-timer-btn');
-  const secondsInput = wrap.querySelector('.seconds-input');
-
-  if (timer.running) {
-    startBtn.classList.add('hidden');
-    stopBtn.classList.remove('hidden');
-  }
-
-  startBtn.addEventListener('click', () => {
-    timer.running = true;
-    timer.startTs = Date.now();
-    startBtn.classList.add('hidden');
-    stopBtn.classList.remove('hidden');
-    timer.intervalId = setInterval(() => {
-      display.textContent = formatSeconds((Date.now() - timer.startTs) / 1000);
-    }, 250);
-  });
-
-  stopBtn.addEventListener('click', () => {
-    const elapsed = Math.round((Date.now() - timer.startTs) / 1000);
-    clearInterval(timer.intervalId);
-    timer.running = false;
-    timer.intervalId = null;
-    timer.startTs = null;
-    st.sets.push({ seconds: elapsed });
-    refreshBody();
-  });
-
-  addBtn.addEventListener('click', () => {
-    st.sets.push(composeSet(ex, { seconds: secondsInput.value }));
-    refreshBody();
+      <div class="chevron">›</div>
+    `;
+    row.addEventListener('click', () => {
+      activeSession.activeExerciseId = ex.id;
+      renderSessionModal(workout);
+    });
+    wrap.appendChild(row);
   });
 
   return wrap;
 }
+
+// Step 2: a single exercise filling the whole modal — recent history,
+// already-logged sets as removable chips, and a guided add-set flow.
+function renderExerciseDetail(ex, workout) {
+  const st = activeSession.exStates[ex.id];
+  const wrap = document.createElement('div');
+  wrap.className = `exercise-detail type-${ex.type}`;
+
+  function refresh() {
+    wrap.innerHTML = '';
+    renderBody();
+  }
+
+  function renderBody() {
+    const history = getExerciseHistory(ex.id, activeSession.date, activeSession.existingLogId);
+
+    const histDiv = document.createElement('div');
+    histDiv.className = 'history-block';
+    if (history.length === 0) {
+      histDiv.innerHTML = '<div class="label">Recent</div><div class="small-muted">No previous history for this exercise yet.</div>';
+    } else {
+      const lines = history.map(h => `<span class="hdate">${escapeHtml(h.date)}</span> ${escapeHtml(h.sets.map(s => formatSetSummary(ex, s)).join(', '))}`);
+      const trendVals = [...history].reverse().map(h => trendMetric(ex.type, h.sets));
+      histDiv.innerHTML = `
+        <div class="label">Recent</div>
+        ${lines.map(l => `<div class="history-line">${l}</div>`).join('')}
+        ${trendVals.length > 1 ? `<div class="trend-line">Trend: ${trendVals.map(escapeHtml).join(' → ')}</div>` : ''}
+      `;
+    }
+    wrap.appendChild(histDiv);
+
+    if (st.sets.length > 0) {
+      const chipList = document.createElement('div');
+      chipList.className = 'set-chip-list';
+      st.sets.forEach((set, i) => {
+        const chip = document.createElement('span');
+        chip.className = 'set-chip';
+        chip.innerHTML = `${escapeHtml(`${i + 1}. ${formatSetSummary(ex, set)}`)} <button type="button" class="set-chip-remove" title="Remove set">✕</button>`;
+        chip.querySelector('.set-chip-remove').addEventListener('click', () => {
+          st.sets.splice(i, 1);
+          refresh();
+        });
+        chipList.appendChild(chip);
+      });
+      wrap.appendChild(chipList);
+    }
+
+    const addArea = document.createElement('div');
+    addArea.className = 'add-set-area';
+    wrap.appendChild(addArea);
+
+    function showAddButton() {
+      addArea.innerHTML = '';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'primary add-set-btn-big';
+      btn.textContent = '+ Add Set';
+      btn.addEventListener('click', () => {
+        if (ex.type === 'timed') showTimedWizard();
+        else showStandardWizard();
+      });
+      addArea.appendChild(btn);
+    }
+
+    function showStandardWizard() {
+      const lastSet = lastSetFor(st, history);
+      const decomposed = lastSet ? decomposeSet(ex, lastSet) : {};
+      let repsVal = decomposed.reps ?? '';
+
+      function stepReps() {
+        addArea.innerHTML = '';
+        const step = document.createElement('div');
+        step.className = 'wizard-step';
+        step.innerHTML = `
+          <div class="wizard-label">Reps</div>
+          <input type="number" inputmode="numeric" class="wizard-input wiz-reps" min="0" value="${repsVal}">
+        `;
+        const actions = document.createElement('div');
+        actions.className = 'wizard-actions';
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button'; cancelBtn.className = 'secondary'; cancelBtn.textContent = 'Cancel';
+        cancelBtn.addEventListener('click', showAddButton);
+        const nextBtn = document.createElement('button');
+        nextBtn.type = 'button'; nextBtn.className = 'primary';
+        nextBtn.textContent = ex.type === 'bodyweight' ? 'Add Set' : 'Next';
+        actions.appendChild(cancelBtn);
+        actions.appendChild(nextBtn);
+        step.appendChild(actions);
+        addArea.appendChild(step);
+
+        const input = step.querySelector('.wiz-reps');
+        input.focus();
+        input.select();
+
+        function proceed() {
+          repsVal = input.value;
+          if (ex.type === 'bodyweight') {
+            st.sets.push(composeSet(ex, { reps: repsVal }));
+            refresh();
+          } else {
+            stepExtra();
+          }
+        }
+        nextBtn.addEventListener('click', proceed);
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); proceed(); } });
+      }
+
+      function stepExtra() {
+        addArea.innerHTML = '';
+        const label = ex.type === 'barbell' ? 'Plates/side' : ex.type === 'dumbbell' ? 'Weight/DB' : 'Weight';
+        const extraKey = ex.type === 'barbell' ? 'perSide' : ex.type === 'dumbbell' ? 'perDb' : 'weight';
+        const extraVal = decomposed[extraKey] ?? '';
+        const step = document.createElement('div');
+        step.className = 'wizard-step';
+        step.innerHTML = `
+          <div class="wizard-label">${label}</div>
+          <input type="number" inputmode="decimal" class="wizard-input wiz-extra" min="0" step="any" value="${extraVal}">
+          ${ex.type !== 'normal' ? '<div class="wizard-total"></div>' : ''}
+        `;
+        const actions = document.createElement('div');
+        actions.className = 'wizard-actions';
+        const backBtn2 = document.createElement('button');
+        backBtn2.type = 'button'; backBtn2.className = 'secondary'; backBtn2.textContent = 'Back';
+        backBtn2.addEventListener('click', stepReps);
+        const addBtn2 = document.createElement('button');
+        addBtn2.type = 'button'; addBtn2.className = 'primary'; addBtn2.textContent = 'Add Set';
+        actions.appendChild(backBtn2);
+        actions.appendChild(addBtn2);
+        step.appendChild(actions);
+        addArea.appendChild(step);
+
+        const input = step.querySelector('.wiz-extra');
+        const totalDisplay = step.querySelector('.wizard-total');
+        function updateTotal() {
+          if (!totalDisplay) return;
+          const v = Number(input.value) || 0;
+          const total = ex.type === 'barbell' ? v * 2 + barWeightOf(ex) : v * 2;
+          totalDisplay.textContent = `Total: ${roundTo(total)} lb`;
+        }
+        updateTotal();
+        input.addEventListener('input', updateTotal);
+        input.focus();
+        input.select();
+
+        function proceed() {
+          const vals = { reps: repsVal };
+          vals[extraKey] = input.value;
+          st.sets.push(composeSet(ex, vals));
+          refresh();
+        }
+        addBtn2.addEventListener('click', proceed);
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); proceed(); } });
+      }
+
+      stepReps();
+    }
+
+    function showTimedWizard() {
+      addArea.innerHTML = '';
+      const timer = activeSession.timers[ex.id];
+      const lastSet = lastSetFor(st, history);
+      const decomposed = lastSet ? decomposeSet(ex, lastSet) : {};
+      const step = document.createElement('div');
+      step.className = 'wizard-step';
+      step.innerHTML = `
+        <div class="wizard-label">Timer</div>
+        <div class="timer-display-big">0:00</div>
+        <div class="wizard-actions">
+          <button type="button" class="secondary start-timer-btn">Start</button>
+          <button type="button" class="primary stop-timer-btn hidden">Stop &amp; Add</button>
+        </div>
+        <div class="wizard-label" style="margin-top:18px;">Or enter seconds manually</div>
+        <input type="number" inputmode="numeric" class="wizard-input wiz-seconds" min="0" value="${decomposed.seconds ?? ''}">
+        <div class="wizard-actions">
+          <button type="button" class="secondary cancel-wizard-btn">Cancel</button>
+          <button type="button" class="primary add-seconds-btn">Add Set</button>
+        </div>
+      `;
+      addArea.appendChild(step);
+
+      const display = step.querySelector('.timer-display-big');
+      const startBtn = step.querySelector('.start-timer-btn');
+      const stopBtn = step.querySelector('.stop-timer-btn');
+      const secondsInput = step.querySelector('.wiz-seconds');
+      const cancelBtn = step.querySelector('.cancel-wizard-btn');
+      const addSecondsBtn = step.querySelector('.add-seconds-btn');
+
+      if (timer.running) {
+        startBtn.classList.add('hidden');
+        stopBtn.classList.remove('hidden');
+      }
+
+      startBtn.addEventListener('click', () => {
+        timer.running = true;
+        timer.startTs = Date.now();
+        startBtn.classList.add('hidden');
+        stopBtn.classList.remove('hidden');
+        timer.intervalId = setInterval(() => {
+          display.textContent = formatSeconds((Date.now() - timer.startTs) / 1000);
+        }, 250);
+      });
+
+      stopBtn.addEventListener('click', () => {
+        const elapsed = Math.round((Date.now() - timer.startTs) / 1000);
+        clearInterval(timer.intervalId);
+        timer.running = false;
+        timer.intervalId = null;
+        timer.startTs = null;
+        st.sets.push({ seconds: elapsed });
+        refresh();
+      });
+
+      cancelBtn.addEventListener('click', showAddButton);
+
+      addSecondsBtn.addEventListener('click', () => {
+        st.sets.push(composeSet(ex, { seconds: secondsInput.value }));
+        refresh();
+      });
+    }
+
+    showAddButton();
+  }
+
+  renderBody();
+  return wrap;
+}
+
+document.getElementById('sessionBackBtn').addEventListener('click', () => {
+  if (!activeSession) return;
+  const timer = activeSession.timers[activeSession.activeExerciseId];
+  if (timer && timer.running) {
+    alert('Stop the timer for this exercise before going back.');
+    return;
+  }
+  activeSession.activeExerciseId = null;
+  renderSessionModal(getWorkout(activeSession.workoutId));
+});
 
 document.getElementById('cancelSessionBtn').addEventListener('click', () => {
   stopAllTimers();
