@@ -1,15 +1,39 @@
 // ---------- Storage ----------
 const STORAGE_KEY = 'workoutTrackerData';
+const DEFAULT_BAR_WEIGHT = 45;
+
+const TYPE_LABELS = {
+  normal: 'Normal',
+  barbell: 'Barbell',
+  dumbbell: 'Dumbbell',
+  bodyweight: 'Bodyweight',
+  timed: 'Timed',
+};
+
+// Migrate older saved data into the current shape WITHOUT touching any
+// numbers the user already logged. Exercises gain a `type` (defaulting to
+// 'normal', which is exactly how the app behaved before types existed) and
+// barbell exercises gain a `barWeight` if missing.
+function migrateState(s) {
+  s.workouts = (s.workouts || []).map(w => ({
+    ...w,
+    exercises: (w.exercises || []).map(e => ({
+      id: e.id,
+      name: e.name,
+      type: e.type || 'normal',
+      barWeight: (e.type || 'normal') === 'barbell' ? (e.barWeight ?? DEFAULT_BAR_WEIGHT) : e.barWeight,
+    })),
+  }));
+  s.logs = s.logs || [];
+  return s;
+}
 
 function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { workouts: [], logs: [] };
     const parsed = JSON.parse(raw);
-    return {
-      workouts: parsed.workouts || [],
-      logs: parsed.logs || [],
-    };
+    return migrateState({ workouts: parsed.workouts || [], logs: parsed.logs || [] });
   } catch (e) {
     console.error('Failed to load data', e);
     return { workouts: [], logs: [] };
@@ -39,11 +63,6 @@ function formatDateLocal(d) {
   return `${y}-${m}-${day}`;
 }
 
-function parseDateLocal(str) {
-  const [y, m, d] = str.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-
 function findLogByDate(dateStr) {
   return state.logs.find(l => l.date === dateStr);
 }
@@ -52,19 +71,96 @@ function getWorkout(id) {
   return state.workouts.find(w => w.id === id);
 }
 
-// Find most recent log (before given date, excluding the given date itself)
-// for the same workout, to use as placeholder defaults.
-function findPreviousLogForWorkout(workoutId, beforeDate) {
-  const candidates = state.logs
-    .filter(l => l.workoutId === workoutId && l.date < beforeDate)
-    .sort((a, b) => (a.date < b.date ? 1 : -1));
-  return candidates[0] || null;
-}
-
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+function roundTo(n, decimals = 2) {
+  const f = Math.pow(10, decimals);
+  return Math.round(n * f) / f;
+}
+
+function formatSeconds(total) {
+  const s = Math.max(0, Math.round(total || 0));
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${String(sec).padStart(2, '0')}`;
+}
+
+// ---------- Exercise type math ----------
+// "Canonical" set values are what get persisted: {reps, weight} for
+// normal/barbell/dumbbell, {reps} for bodyweight, {seconds} for timed.
+// The per-type input fields are just convenient ways to produce/consume
+// that canonical weight (e.g. barbell asks for plates-per-side).
+
+function barWeightOf(ex) {
+  return ex.barWeight ?? DEFAULT_BAR_WEIGHT;
+}
+
+// Convert a canonical set into the values shown in the editable inputs.
+function decomposeSet(ex, set) {
+  switch (ex.type) {
+    case 'barbell':
+      return { reps: set.reps, perSide: roundTo((set.weight - barWeightOf(ex)) / 2) };
+    case 'dumbbell':
+      return { reps: set.reps, perDb: roundTo(set.weight / 2) };
+    case 'bodyweight':
+      return { reps: set.reps };
+    case 'timed':
+      return { seconds: set.seconds };
+    default:
+      return { reps: set.reps, weight: set.weight };
+  }
+}
+
+// Convert input field values back into a canonical set.
+function composeSet(ex, vals) {
+  switch (ex.type) {
+    case 'barbell':
+      return { reps: Number(vals.reps) || 0, weight: (Number(vals.perSide) || 0) * 2 + barWeightOf(ex) };
+    case 'dumbbell':
+      return { reps: Number(vals.reps) || 0, weight: (Number(vals.perDb) || 0) * 2 };
+    case 'bodyweight':
+      return { reps: Number(vals.reps) || 0 };
+    case 'timed':
+      return { seconds: Number(vals.seconds) || 0 };
+    default:
+      return { reps: Number(vals.reps) || 0, weight: Number(vals.weight) || 0 };
+  }
+}
+
+function formatSetSummary(type, set) {
+  if (type === 'timed') return formatSeconds(set.seconds || 0);
+  if (type === 'bodyweight') return `${set.reps || 0} reps`;
+  return `${set.reps || 0}×${set.weight || 0}`;
+}
+
+function trendMetric(type, sets) {
+  if (type === 'timed') return formatSeconds(Math.max(...sets.map(s => s.seconds || 0)));
+  if (type === 'bodyweight') return `${Math.max(...sets.map(s => s.reps || 0))} reps`;
+  return `${Math.max(...sets.map(s => s.weight || 0))} lb`;
+}
+
+// Sessions strictly before `beforeDate` that logged this exercise with at
+// least one set, most recent first.
+function getExerciseHistory(exerciseId, beforeDate, excludeLogId, limit = 4) {
+  return state.logs
+    .filter(l => l.id !== excludeLogId && l.date < beforeDate)
+    .map(l => ({
+      date: l.date,
+      sets: (l.exerciseLogs.find(el => el.exerciseId === exerciseId) || { sets: [] }).sets,
+    }))
+    .filter(h => h.sets.length > 0)
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .slice(0, limit);
+}
+
+function lastSetFor(st, history) {
+  if (st.sets.length) return st.sets[st.sets.length - 1];
+  if (history.length) return history[0].sets[history[0].sets.length - 1];
+  return null;
 }
 
 // ---------- View navigation ----------
@@ -111,13 +207,14 @@ function confirmDialog(title, text, onConfirm) {
 // ---------- Workout Definitions ----------
 let editingWorkoutId = null;
 let draftExercises = [];
+let editingDraftIndex = -1;
 
 document.getElementById('newWorkoutBtn').addEventListener('click', () => {
   editingWorkoutId = null;
   draftExercises = [];
   document.getElementById('workoutModalTitle').textContent = 'New Workout';
   document.getElementById('workoutNameInput').value = '';
-  document.getElementById('exerciseNameInput').value = '';
+  resetExerciseDraftForm();
   renderExerciseTagList();
   openModal('workoutModal');
 });
@@ -126,22 +223,47 @@ document.getElementById('cancelWorkoutBtn').addEventListener('click', () => {
   closeModal('workoutModal');
 });
 
-document.getElementById('addExerciseToWorkoutBtn').addEventListener('click', addExerciseToDraft);
+document.getElementById('exerciseTypeInput').addEventListener('change', updateBarWeightVisibility);
+function updateBarWeightVisibility() {
+  const isBarbell = document.getElementById('exerciseTypeInput').value === 'barbell';
+  document.getElementById('exerciseBarWeightContainer').classList.toggle('hidden', !isBarbell);
+}
+
+function resetExerciseDraftForm() {
+  editingDraftIndex = -1;
+  document.getElementById('exerciseNameInput').value = '';
+  document.getElementById('exerciseTypeInput').value = 'normal';
+  document.getElementById('exerciseBarWeightInput').value = DEFAULT_BAR_WEIGHT;
+  updateBarWeightVisibility();
+  document.getElementById('addExerciseToWorkoutBtn').textContent = '+ Add Exercise';
+}
+
+document.getElementById('addExerciseToWorkoutBtn').addEventListener('click', addOrUpdateExerciseDraft);
 document.getElementById('exerciseNameInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
-    addExerciseToDraft();
+    addOrUpdateExerciseDraft();
   }
 });
 
-function addExerciseToDraft() {
-  const input = document.getElementById('exerciseNameInput');
-  const name = input.value.trim();
+function addOrUpdateExerciseDraft() {
+  const nameInput = document.getElementById('exerciseNameInput');
+  const name = nameInput.value.trim();
   if (!name) return;
-  draftExercises.push({ id: uid(), name });
-  input.value = '';
+  const type = document.getElementById('exerciseTypeInput').value;
+  const barWeight = type === 'barbell'
+    ? (Number(document.getElementById('exerciseBarWeightInput').value) || DEFAULT_BAR_WEIGHT)
+    : undefined;
+
+  if (editingDraftIndex >= 0) {
+    const existing = draftExercises[editingDraftIndex];
+    draftExercises[editingDraftIndex] = { id: existing.id, name, type, barWeight };
+  } else {
+    draftExercises.push({ id: uid(), name, type, barWeight });
+  }
+  resetExerciseDraftForm();
   renderExerciseTagList();
-  input.focus();
+  nameInput.focus();
 }
 
 function renderExerciseTagList() {
@@ -151,11 +273,33 @@ function renderExerciseTagList() {
     return;
   }
   container.innerHTML = draftExercises.map((ex, i) => `
-    <span class="ex-tag">${escapeHtml(ex.name)}<button data-idx="${i}" class="remove-ex-tag">✕</button></span>
+    <div class="exercise-def-row">
+      <div>
+        <span class="name">${escapeHtml(ex.name)}</span>
+        <span class="type-badge">${TYPE_LABELS[ex.type] || 'Normal'}${ex.type === 'barbell' ? ` · bar ${barWeightOf(ex)}lb` : ''}</span>
+      </div>
+      <div style="display:flex; gap:6px;">
+        <button class="icon-btn" type="button" data-edit-draft="${i}">Edit</button>
+        <button class="danger" type="button" data-remove-draft="${i}">Remove</button>
+      </div>
+    </div>
   `).join('');
-  container.querySelectorAll('.remove-ex-tag').forEach(btn => {
+  container.querySelectorAll('[data-edit-draft]').forEach(btn => {
     btn.addEventListener('click', () => {
-      draftExercises.splice(Number(btn.dataset.idx), 1);
+      const i = Number(btn.dataset.editDraft);
+      const ex = draftExercises[i];
+      editingDraftIndex = i;
+      document.getElementById('exerciseNameInput').value = ex.name;
+      document.getElementById('exerciseTypeInput').value = ex.type;
+      document.getElementById('exerciseBarWeightInput').value = ex.barWeight ?? DEFAULT_BAR_WEIGHT;
+      updateBarWeightVisibility();
+      document.getElementById('addExerciseToWorkoutBtn').textContent = 'Update Exercise';
+    });
+  });
+  container.querySelectorAll('[data-remove-draft]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      draftExercises.splice(Number(btn.dataset.removeDraft), 1);
+      if (editingDraftIndex === Number(btn.dataset.removeDraft)) resetExerciseDraftForm();
       renderExerciseTagList();
     });
   });
@@ -188,7 +332,7 @@ function renderWorkoutList() {
     <div class="list-item">
       <div>
         <div class="name">${escapeHtml(w.name)}</div>
-        <div class="meta">${w.exercises.map(e => escapeHtml(e.name)).join(', ')}</div>
+        <div class="meta">${w.exercises.map(e => `${escapeHtml(e.name)} (${TYPE_LABELS[e.type] || 'Normal'})`).join(', ')}</div>
       </div>
       <div style="display:flex; gap:8px;">
         <button class="icon-btn" data-edit="${w.id}">Edit</button>
@@ -204,7 +348,7 @@ function renderWorkoutList() {
     btn.addEventListener('click', () => {
       confirmDialog(
         'Delete workout?',
-        'This will not delete past logs, but you will not be able to log this workout again unless you recreate it.',
+        'This will not delete past logs, but you will not be able to start this workout again unless you recreate it.',
         () => {
           state.workouts = state.workouts.filter(w => w.id !== btn.dataset.del);
           saveData();
@@ -222,12 +366,12 @@ function editWorkout(id) {
   draftExercises = w.exercises.map(e => ({ ...e }));
   document.getElementById('workoutModalTitle').textContent = 'Edit Workout';
   document.getElementById('workoutNameInput').value = w.name;
-  document.getElementById('exerciseNameInput').value = '';
+  resetExerciseDraftForm();
   renderExerciseTagList();
   openModal('workoutModal');
 }
 
-// ---------- Logging flow ----------
+// ---------- Start Workout flow ----------
 document.getElementById('logTodayBtn').addEventListener('click', () => {
   if (state.workouts.length === 0) {
     alert('Create a workout first in the "Workouts" tab.');
@@ -256,14 +400,12 @@ function renderPickWorkoutList() {
     el.addEventListener('click', () => {
       const date = document.getElementById('logDateInput').value || todayStr();
       closeModal('pickWorkoutModal');
-      startLogEntry(el.dataset.pick, date);
+      startSession(el.dataset.pick, date);
     });
   });
 }
 
-let currentLogContext = null; // { date, workoutId, existingLogId }
-
-function startLogEntry(workoutId, date) {
+function startSession(workoutId, date) {
   const workout = getWorkout(workoutId);
   if (!workout) return;
 
@@ -271,128 +413,350 @@ function startLogEntry(workoutId, date) {
   if (existing && existing.workoutId !== workoutId) {
     confirmDialog(
       'Replace existing log?',
-      `You already logged "${existing.workoutName}" on ${date}. Logging a different workout will replace it. Continue?`,
-      () => openLogModalFor(workout, date, null)
+      `You already logged "${existing.workoutName}" on ${date}. Starting a different workout will replace it. Continue?`,
+      () => openSessionModal(workout, date, null)
     );
     return;
   }
-  openLogModalFor(workout, date, existing || null);
+  openSessionModal(workout, date, existing || null);
 }
 
-function openLogModalFor(workout, date, existingLog) {
-  const prevLog = findPreviousLogForWorkout(workout.id, date);
+// ---------- Session modal (Start Workout -> Start Exercise -> Add Set) ----------
+let activeSession = null;
+/* {
+  date, workoutId, existingLogId,
+  exStates: { [exerciseId]: { sets: [...], opened: bool } },
+  timers: { [exerciseId]: { running, startTs, intervalId } },
+} */
 
-  currentLogContext = { date, workoutId: workout.id, existingLogId: existingLog ? existingLog.id : null };
+function stopAllTimers() {
+  if (!activeSession) return;
+  Object.values(activeSession.timers).forEach(t => {
+    if (t.intervalId) clearInterval(t.intervalId);
+    t.running = false;
+    t.intervalId = null;
+    t.startTs = null;
+  });
+}
 
-  document.getElementById('logModalTitle').textContent = existingLog ? 'Edit Logged Workout' : 'Log Workout';
-  document.getElementById('logEntryDateInput').value = date;
-  document.getElementById('logEntryWorkoutName').value = workout.name;
-  document.getElementById('deleteLogBtn').classList.toggle('hidden', !existingLog);
-
-  const container = document.getElementById('logExercisesContainer');
-  container.innerHTML = '';
+function openSessionModal(workout, date, existingLog) {
+  stopAllTimers();
+  activeSession = { date, workoutId: workout.id, existingLogId: existingLog ? existingLog.id : null, exStates: {}, timers: {} };
 
   workout.exercises.forEach(ex => {
-    const existingExLog = existingLog && existingLog.exerciseLogs.find(el => el.exerciseId === ex.id);
-    const prevExLog = prevLog && prevLog.exerciseLogs.find(el => el.exerciseId === ex.id);
-
-    let sets;
-    if (existingExLog) {
-      sets = existingExLog.sets.map(s => ({ reps: s.reps, weight: s.weight }));
-    } else if (prevExLog && prevExLog.sets.length) {
-      sets = prevExLog.sets.map(() => ({ reps: '', weight: '' }));
-    } else {
-      sets = [{ reps: '', weight: '' }];
-    }
-
-    const placeholderSets = prevExLog ? prevExLog.sets : null;
-
-    const block = document.createElement('div');
-    block.className = 'exercise-block';
-    block.dataset.exerciseId = ex.id;
-    block.innerHTML = `
-      <h3>${escapeHtml(ex.name)}</h3>
-      <table>
-        <thead>
-          <tr><th style="width:40px;">Set</th><th>Reps</th><th>Weight</th><th></th></tr>
-        </thead>
-        <tbody class="sets-body"></tbody>
-      </table>
-      <button class="icon-btn add-set-btn" type="button">+ Add Set</button>
-    `;
-    container.appendChild(block);
-
-    const tbody = block.querySelector('.sets-body');
-    sets.forEach((s, i) => addSetRow(tbody, s, placeholderSets ? placeholderSets[i] : null));
-
-    block.querySelector('.add-set-btn').addEventListener('click', () => {
-      const idx = tbody.querySelectorAll('.set-row').length;
-      const ph = placeholderSets ? placeholderSets[idx] : null;
-      addSetRow(tbody, { reps: '', weight: '' }, ph);
-    });
+    const exLog = existingLog && existingLog.exerciseLogs.find(el => el.exerciseId === ex.id);
+    const sets = exLog ? exLog.sets.map(s => ({ ...s })) : [];
+    activeSession.exStates[ex.id] = { sets, opened: sets.length > 0 };
+    activeSession.timers[ex.id] = { running: false, startTs: null, intervalId: null };
   });
 
-  openModal('logModal');
+  document.getElementById('sessionModalTitle').textContent = existingLog ? 'Edit Logged Workout' : 'Start Workout';
+  document.getElementById('sessionDateInput').value = date;
+  document.getElementById('sessionWorkoutName').value = workout.name;
+  document.getElementById('deleteSessionBtn').classList.toggle('hidden', !existingLog);
+
+  renderSessionModal(workout);
+  openModal('sessionModal');
 }
 
-function addSetRow(tbody, values, placeholder) {
+function renderSessionModal(workout) {
+  const container = document.getElementById('sessionExercisesContainer');
+  container.innerHTML = '';
+  workout.exercises.forEach(ex => {
+    container.appendChild(createExerciseCard(ex, workout));
+  });
+}
+
+function createExerciseCard(ex, workout) {
+  const st = activeSession.exStates[ex.id];
+  const card = document.createElement('div');
+  card.className = 'exercise-card';
+  card.dataset.exerciseId = ex.id;
+
+  const header = document.createElement('div');
+  header.className = 'exercise-card-header';
+  header.innerHTML = `
+    <div>
+      <span class="name">${escapeHtml(ex.name)}</span>
+      <span class="type-badge">${TYPE_LABELS[ex.type] || 'Normal'}</span>
+    </div>
+  `;
+  const toggleBtn = document.createElement('button');
+  toggleBtn.className = 'icon-btn';
+  toggleBtn.type = 'button';
+  header.appendChild(toggleBtn);
+  card.appendChild(header);
+
+  const body = document.createElement('div');
+  body.className = 'exercise-card-body';
+  card.appendChild(body);
+
+  function setToggleLabel() {
+    toggleBtn.textContent = st.opened ? 'Hide' : (st.sets.length ? 'Continue Exercise' : 'Start Exercise');
+  }
+
+  function refreshBody() {
+    setToggleLabel();
+    body.style.display = st.opened ? 'block' : 'none';
+    body.innerHTML = '';
+    if (!st.opened) return;
+    renderCardBody(ex, st, body, refreshBody);
+  }
+
+  toggleBtn.addEventListener('click', () => {
+    const timer = activeSession.timers[ex.id];
+    if (st.opened && timer.running) {
+      alert('Stop the timer for this exercise before hiding it.');
+      return;
+    }
+    st.opened = !st.opened;
+    refreshBody();
+  });
+
+  refreshBody();
+  return card;
+}
+
+function setColumnHeaders(type) {
+  if (type === 'timed') return '<th>Time</th>';
+  if (type === 'bodyweight') return '<th>Reps</th>';
+  if (type === 'barbell') return '<th>Reps</th><th>Plates/side</th>';
+  if (type === 'dumbbell') return '<th>Reps</th><th>Weight/DB</th>';
+  return '<th>Reps</th><th>Weight</th>';
+}
+
+function renderCardBody(ex, st, body, refreshBody) {
+  const history = getExerciseHistory(ex.id, activeSession.date, activeSession.existingLogId);
+
+  const histDiv = document.createElement('div');
+  histDiv.className = 'history-block';
+  if (history.length === 0) {
+    histDiv.innerHTML = '<div class="small-muted">No previous history for this exercise yet.</div>';
+  } else {
+    const lines = history.map(h => `${h.date}: ${h.sets.map(s => formatSetSummary(ex.type, s)).join(', ')}`);
+    const trendVals = [...history].reverse().map(h => trendMetric(ex.type, h.sets));
+    histDiv.innerHTML = `
+      <div class="small-muted" style="margin-bottom:4px;">Recent history</div>
+      ${lines.map(l => `<div class="history-line">${escapeHtml(l)}</div>`).join('')}
+      ${trendVals.length > 1 ? `<div class="trend-line">Trend: ${trendVals.map(escapeHtml).join(' → ')}</div>` : ''}
+    `;
+  }
+  body.appendChild(histDiv);
+
+  if (st.sets.length > 0) {
+    const table = document.createElement('table');
+    table.className = 'set-table';
+    table.innerHTML = `<thead><tr><th style="width:30px;">#</th>${setColumnHeaders(ex.type)}<th></th></tr></thead>`;
+    const tbody = document.createElement('tbody');
+    st.sets.forEach((set, i) => tbody.appendChild(buildSetRow(ex, st, i, refreshBody)));
+    table.appendChild(tbody);
+    body.appendChild(table);
+  }
+
+  const addRow = document.createElement('div');
+  addRow.className = 'add-set-row';
+  if (ex.type === 'timed') {
+    addRow.appendChild(buildTimedAddControls(ex, st, history, refreshBody));
+  } else {
+    addRow.appendChild(buildStandardAddControls(ex, st, history, refreshBody));
+  }
+  body.appendChild(addRow);
+}
+
+function buildSetRow(ex, st, i, refreshBody) {
+  const set = st.sets[i];
+  const decomposed = decomposeSet(ex, set);
   const tr = document.createElement('tr');
   tr.className = 'set-row';
-  const setNum = tbody.querySelectorAll('.set-row').length + 1;
-  const repsPh = placeholder ? placeholder.reps : '';
-  const weightPh = placeholder ? placeholder.weight : '';
-  tr.innerHTML = `
-    <td class="set-num">${setNum}</td>
-    <td><input type="number" class="reps-input" min="0" placeholder="${repsPh}" value="${values.reps ?? ''}"></td>
-    <td><input type="number" class="weight-input" min="0" step="any" placeholder="${weightPh}" value="${values.weight ?? ''}"></td>
-    <td><button type="button" class="remove-set-btn" title="Remove set" style="background:none;border:none;color:var(--danger);cursor:pointer;">✕</button></td>
-  `;
-  tbody.appendChild(tr);
+
+  function updateFromInputs(getVals) {
+    const vals = getVals();
+    Object.assign(set, composeSet(ex, vals));
+  }
+
+  let inputsHtml = '';
+  if (ex.type === 'timed') {
+    inputsHtml = `<td><input type="number" class="seconds-input" min="0" value="${decomposed.seconds ?? ''}"> sec</td>`;
+  } else if (ex.type === 'bodyweight') {
+    inputsHtml = `<td><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></td>`;
+  } else if (ex.type === 'barbell') {
+    inputsHtml = `<td><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></td><td><input type="number" class="extra-input" min="0" step="any" value="${decomposed.perSide ?? ''}"></td>`;
+  } else if (ex.type === 'dumbbell') {
+    inputsHtml = `<td><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></td><td><input type="number" class="extra-input" min="0" step="any" value="${decomposed.perDb ?? ''}"></td>`;
+  } else {
+    inputsHtml = `<td><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></td><td><input type="number" class="extra-input" min="0" step="any" value="${decomposed.weight ?? ''}"></td>`;
+  }
+
+  tr.innerHTML = `<td>${i + 1}</td>${inputsHtml}<td><button type="button" class="remove-set-btn" title="Remove set" style="background:none;border:none;color:var(--danger);cursor:pointer;">✕</button></td>`;
+
+  const repsInput = tr.querySelector('.reps-input');
+  const extraInput = tr.querySelector('.extra-input');
+  const secondsInput = tr.querySelector('.seconds-input');
+
+  function readVals() {
+    if (ex.type === 'timed') return { seconds: secondsInput.value };
+    if (ex.type === 'bodyweight') return { reps: repsInput.value };
+    if (ex.type === 'barbell') return { reps: repsInput.value, perSide: extraInput.value };
+    if (ex.type === 'dumbbell') return { reps: repsInput.value, perDb: extraInput.value };
+    return { reps: repsInput.value, weight: extraInput.value };
+  }
+
+  [repsInput, extraInput, secondsInput].forEach(inp => {
+    if (!inp) return;
+    inp.addEventListener('input', () => updateFromInputs(readVals));
+  });
+
   tr.querySelector('.remove-set-btn').addEventListener('click', () => {
-    tr.remove();
-    renumberSets(tbody);
+    st.sets.splice(i, 1);
+    refreshBody();
   });
+
+  return tr;
 }
 
-function renumberSets(tbody) {
-  tbody.querySelectorAll('.set-row').forEach((tr, i) => {
-    tr.querySelector('.set-num').textContent = i + 1;
+function buildStandardAddControls(ex, st, history, refreshBody) {
+  const wrap = document.createElement('div');
+  wrap.style.display = 'flex';
+  wrap.style.gap = '8px';
+  wrap.style.alignItems = 'flex-end';
+  wrap.style.flexWrap = 'wrap';
+
+  const lastSet = lastSetFor(st, history);
+  const decomposed = lastSet ? decomposeSet(ex, lastSet) : {};
+
+  let fieldsHtml = `<div><label>Reps</label><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></div>`;
+  if (ex.type === 'barbell') {
+    fieldsHtml += `<div><label>Plates/side</label><input type="number" class="extra-input" min="0" step="any" value="${decomposed.perSide ?? ''}"></div>`;
+  } else if (ex.type === 'dumbbell') {
+    fieldsHtml += `<div><label>Weight/DB</label><input type="number" class="extra-input" min="0" step="any" value="${decomposed.perDb ?? ''}"></div>`;
+  } else if (ex.type === 'normal') {
+    fieldsHtml += `<div><label>Weight</label><input type="number" class="extra-input" min="0" step="any" value="${decomposed.weight ?? ''}"></div>`;
+  }
+  // bodyweight: reps only, no extra field
+
+  wrap.innerHTML = fieldsHtml;
+  const addBtn = document.createElement('button');
+  addBtn.className = 'primary';
+  addBtn.type = 'button';
+  addBtn.textContent = '+ Add Set';
+  wrap.appendChild(addBtn);
+
+  addBtn.addEventListener('click', () => {
+    const repsInput = wrap.querySelector('.reps-input');
+    const extraInput = wrap.querySelector('.extra-input');
+    const vals = { reps: repsInput.value };
+    if (ex.type === 'barbell') vals.perSide = extraInput.value;
+    else if (ex.type === 'dumbbell') vals.perDb = extraInput.value;
+    else if (ex.type === 'normal') vals.weight = extraInput.value;
+    st.sets.push(composeSet(ex, vals));
+    refreshBody();
   });
+
+  return wrap;
 }
 
-document.getElementById('cancelLogBtn').addEventListener('click', () => closeModal('logModal'));
+function buildTimedAddControls(ex, st, history, refreshBody) {
+  const wrap = document.createElement('div');
+  wrap.style.display = 'flex';
+  wrap.style.gap = '8px';
+  wrap.style.alignItems = 'flex-end';
+  wrap.style.flexWrap = 'wrap';
 
-document.getElementById('saveLogBtn').addEventListener('click', () => {
-  if (!currentLogContext) return;
-  const date = document.getElementById('logEntryDateInput').value;
+  const lastSet = lastSetFor(st, history);
+  const decomposed = lastSet ? decomposeSet(ex, lastSet) : {};
+  const timer = activeSession.timers[ex.id];
+
+  wrap.innerHTML = `
+    <div>
+      <label>Timer</label>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <span class="timer-display">0:00</span>
+        <button type="button" class="secondary start-timer-btn">Start</button>
+        <button type="button" class="secondary stop-timer-btn hidden">Stop</button>
+      </div>
+    </div>
+    <div>
+      <label>Or enter seconds manually</label>
+      <input type="number" class="seconds-input" min="0" value="${decomposed.seconds ?? ''}">
+    </div>
+  `;
+  const addBtn = document.createElement('button');
+  addBtn.className = 'primary';
+  addBtn.type = 'button';
+  addBtn.textContent = '+ Add Set';
+  wrap.appendChild(addBtn);
+
+  const display = wrap.querySelector('.timer-display');
+  const startBtn = wrap.querySelector('.start-timer-btn');
+  const stopBtn = wrap.querySelector('.stop-timer-btn');
+  const secondsInput = wrap.querySelector('.seconds-input');
+
+  if (timer.running) {
+    startBtn.classList.add('hidden');
+    stopBtn.classList.remove('hidden');
+  }
+
+  startBtn.addEventListener('click', () => {
+    timer.running = true;
+    timer.startTs = Date.now();
+    startBtn.classList.add('hidden');
+    stopBtn.classList.remove('hidden');
+    timer.intervalId = setInterval(() => {
+      display.textContent = formatSeconds((Date.now() - timer.startTs) / 1000);
+    }, 250);
+  });
+
+  stopBtn.addEventListener('click', () => {
+    const elapsed = Math.round((Date.now() - timer.startTs) / 1000);
+    clearInterval(timer.intervalId);
+    timer.running = false;
+    timer.intervalId = null;
+    timer.startTs = null;
+    st.sets.push({ seconds: elapsed });
+    refreshBody();
+  });
+
+  addBtn.addEventListener('click', () => {
+    st.sets.push(composeSet(ex, { seconds: secondsInput.value }));
+    refreshBody();
+  });
+
+  return wrap;
+}
+
+document.getElementById('cancelSessionBtn').addEventListener('click', () => {
+  stopAllTimers();
+  closeModal('sessionModal');
+});
+
+document.getElementById('saveSessionBtn').addEventListener('click', () => {
+  if (!activeSession) return;
+  const date = document.getElementById('sessionDateInput').value;
   if (!date) { alert('Please choose a date.'); return; }
-  const workout = getWorkout(currentLogContext.workoutId);
+  const workout = getWorkout(activeSession.workoutId);
   if (!workout) return;
 
-  // If date changed, or a different log already exists at this date, handle collisions.
   const collidingLog = findLogByDate(date);
-  if (collidingLog && collidingLog.id !== currentLogContext.existingLogId) {
+  if (collidingLog && collidingLog.id !== activeSession.existingLogId) {
     alert(`A workout is already logged on ${date}. Delete or edit that entry first, or pick a different date.`);
     return;
   }
 
-  const exerciseLogs = [];
-  document.querySelectorAll('#logExercisesContainer .exercise-block').forEach(block => {
-    const exerciseId = block.dataset.exerciseId;
-    const exDef = workout.exercises.find(e => e.id === exerciseId);
-    const sets = [];
-    block.querySelectorAll('.set-row').forEach(row => {
-      const reps = row.querySelector('.reps-input').value;
-      const weight = row.querySelector('.weight-input').value;
-      if (reps !== '' || weight !== '') {
-        sets.push({ reps: reps === '' ? '' : Number(reps), weight: weight === '' ? '' : Number(weight) });
-      }
-    });
-    exerciseLogs.push({ exerciseId, name: exDef ? exDef.name : '', sets });
-  });
+  for (const ex of workout.exercises) {
+    if (activeSession.timers[ex.id].running) {
+      alert(`Stop the timer for "${ex.name}" before saving.`);
+      return;
+    }
+  }
 
-  if (currentLogContext.existingLogId) {
-    const log = state.logs.find(l => l.id === currentLogContext.existingLogId);
+  const exerciseLogs = workout.exercises.map(ex => ({
+    exerciseId: ex.id,
+    name: ex.name,
+    sets: activeSession.exStates[ex.id].sets.map(s => ({ ...s })),
+  }));
+
+  if (activeSession.existingLogId) {
+    const log = state.logs.find(l => l.id === activeSession.existingLogId);
     log.date = date;
     log.workoutId = workout.id;
     log.workoutName = workout.name;
@@ -408,17 +772,19 @@ document.getElementById('saveLogBtn').addEventListener('click', () => {
   }
 
   saveData();
-  closeModal('logModal');
+  stopAllTimers();
+  closeModal('sessionModal');
   renderCalendar();
   renderHistoryList();
 });
 
-document.getElementById('deleteLogBtn').addEventListener('click', () => {
-  if (!currentLogContext || !currentLogContext.existingLogId) return;
+document.getElementById('deleteSessionBtn').addEventListener('click', () => {
+  if (!activeSession || !activeSession.existingLogId) return;
   confirmDialog('Delete this log?', 'This cannot be undone.', () => {
-    state.logs = state.logs.filter(l => l.id !== currentLogContext.existingLogId);
+    state.logs = state.logs.filter(l => l.id !== activeSession.existingLogId);
     saveData();
-    closeModal('logModal');
+    stopAllTimers();
+    closeModal('sessionModal');
     renderCalendar();
     renderHistoryList();
   });
@@ -480,9 +846,8 @@ function onCalendarDayClick(dateStr) {
   if (existing) {
     const workout = getWorkout(existing.workoutId);
     if (workout) {
-      openLogModalFor(workout, dateStr, existing);
+      openSessionModal(workout, dateStr, existing);
     } else {
-      // Workout definition was deleted; show read-only-ish via alert fallback
       alert(`Logged "${existing.workoutName}" but its workout definition was deleted, so it can't be edited. Delete it from History if needed.`);
     }
     return;
@@ -505,8 +870,11 @@ function renderHistoryList() {
   }
   const sorted = [...state.logs].sort((a, b) => (a.date < b.date ? 1 : -1));
   container.innerHTML = sorted.map(log => {
+    const workout = getWorkout(log.workoutId);
     const summary = log.exerciseLogs.map(el => {
-      const setsStr = el.sets.map(s => `${s.reps || 0}x${s.weight || 0}`).join(', ');
+      const exDef = workout && workout.exercises.find(e => e.id === el.exerciseId);
+      const type = exDef ? exDef.type : 'normal';
+      const setsStr = el.sets.map(s => formatSetSummary(type, s)).join(', ');
       return `${escapeHtml(el.name)} (${setsStr || 'no sets'})`;
     }).join(' • ');
     return `
@@ -528,7 +896,7 @@ function renderHistoryList() {
       const log = state.logs.find(l => l.id === btn.dataset.editLog);
       const workout = getWorkout(log.workoutId);
       if (!workout) { alert('Workout definition was deleted; cannot edit.'); return; }
-      openLogModalFor(workout, log.date, log);
+      openSessionModal(workout, log.date, log);
     });
   });
   container.querySelectorAll('[data-del-log]').forEach(btn => {
@@ -572,7 +940,7 @@ document.getElementById('importFile').addEventListener('change', (e) => {
         'Replace all data?',
         'Importing will overwrite your current workouts and logs with the contents of this file.',
         () => {
-          state = { workouts: parsed.workouts, logs: parsed.logs };
+          state = migrateState({ workouts: parsed.workouts, logs: parsed.logs });
           saveData();
           renderWorkoutList();
           renderHistoryList();

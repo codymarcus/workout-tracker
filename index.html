@@ -198,6 +198,38 @@
   footer { text-align: center; color: var(--muted); font-size: 12px; padding: 24px; }
   .hidden { display: none !important; }
 
+  /* exercise definition rows (within Workout modal) */
+  .exercise-def-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 10px; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: var(--radius); margin-bottom: 6px; gap: 8px;
+  }
+  .exercise-def-row .name { font-weight: 600; }
+  .type-badge {
+    font-size: 11px; color: var(--muted); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1px 7px; background: var(--panel); margin-left: 6px;
+  }
+
+  /* Session modal: exercise cards */
+  .exercise-card {
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 12px; margin-bottom: 10px; background: var(--panel-2);
+  }
+  .exercise-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .exercise-card-header .name { font-weight: 600; }
+  .exercise-card-body { margin-top: 10px; }
+  .history-block {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; margin-bottom: 10px; font-size: 13px;
+  }
+  .history-line { color: var(--text); }
+  .trend-line { color: var(--muted); margin-top: 4px; }
+  .add-set-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin-top: 8px; }
+  .add-set-row > div { display: flex; flex-direction: column; }
+  .add-set-row label { margin-bottom: 2px; }
+  .timer-display { font-size: 20px; font-weight: 700; font-family: monospace; min-width: 70px; }
+  .set-table input { width: 100%; max-width: 90px; }
+
   @media (max-width: 480px) {
     header { padding: 12px 14px; gap: 8px; }
     header h1 { font-size: 17px; }
@@ -241,7 +273,7 @@
       <div class="cal-grid" id="calDow"></div>
       <div class="cal-grid" id="calGrid" style="margin-top:6px;"></div>
       <div class="toolbar" style="margin-top:16px; margin-bottom:0;">
-        <button id="logTodayBtn" class="primary">+ Log a workout</button>
+        <button id="logTodayBtn" class="primary">+ Start Workout</button>
         <span class="small-muted">Click any day to view/log/edit that day's workout</span>
       </div>
     </div>
@@ -288,7 +320,7 @@
 
 <!-- Workout Definition Modal -->
 <div class="modal-backdrop" id="workoutModal">
-  <div class="modal">
+  <div class="modal" style="max-width:560px;">
     <h3 id="workoutModalTitle">New Workout</h3>
     <div class="row">
       <div>
@@ -296,16 +328,31 @@
         <input type="text" id="workoutNameInput" placeholder="e.g. Push Day">
       </div>
     </div>
-    <label>Exercises</label>
-    <div id="exerciseTagList" style="margin-bottom:8px;"></div>
+    <label>Add an exercise</label>
     <div class="row">
       <div>
         <input type="text" id="exerciseNameInput" placeholder="Exercise name e.g. Bench Press">
       </div>
-      <div style="flex:0;">
-        <button class="secondary" id="addExerciseToWorkoutBtn">Add</button>
+      <div>
+        <select id="exerciseTypeInput">
+          <option value="normal">Normal (enter weight)</option>
+          <option value="barbell">Barbell (per side)</option>
+          <option value="dumbbell">Double Dumbbell (per dumbbell)</option>
+          <option value="bodyweight">Bodyweight (no weight)</option>
+          <option value="timed">Timed (duration)</option>
+        </select>
+      </div>
+      <div id="exerciseBarWeightContainer" class="hidden">
+        <input type="number" id="exerciseBarWeightInput" placeholder="Bar weight (lb)" value="45" min="0" step="any">
       </div>
     </div>
+    <div class="row">
+      <div style="flex:0;">
+        <button class="secondary" id="addExerciseToWorkoutBtn" type="button">+ Add Exercise</button>
+      </div>
+    </div>
+    <label>Exercises in this workout</label>
+    <div id="exerciseTagList" style="margin-bottom:8px;"></div>
     <div class="modal-actions">
       <button class="secondary" id="cancelWorkoutBtn">Cancel</button>
       <button class="primary" id="saveWorkoutBtn">Save Workout</button>
@@ -313,10 +360,10 @@
   </div>
 </div>
 
-<!-- Pick Workout To Log Modal -->
+<!-- Pick Workout To Start Modal -->
 <div class="modal-backdrop" id="pickWorkoutModal">
   <div class="modal">
-    <h3>Log a Workout</h3>
+    <h3>Start Workout</h3>
     <div class="row">
       <div>
         <label>Date</label>
@@ -331,26 +378,26 @@
   </div>
 </div>
 
-<!-- Log Entry Modal (sets/reps/weight) -->
-<div class="modal-backdrop" id="logModal">
-  <div class="modal" style="max-width:600px;">
-    <h3 id="logModalTitle">Log Workout</h3>
+<!-- Session Modal (start workout -> start exercise -> add sets) -->
+<div class="modal-backdrop" id="sessionModal">
+  <div class="modal" style="max-width:640px;">
+    <h3 id="sessionModalTitle">Workout</h3>
     <div class="row">
       <div>
         <label>Date</label>
-        <input type="date" id="logEntryDateInput">
+        <input type="date" id="sessionDateInput">
       </div>
       <div>
         <label>Workout</label>
-        <input type="text" id="logEntryWorkoutName" disabled>
+        <input type="text" id="sessionWorkoutName" disabled>
       </div>
     </div>
-    <div id="logExercisesContainer"></div>
+    <div id="sessionExercisesContainer"></div>
     <div class="modal-actions">
-      <button class="danger" id="deleteLogBtn">Delete log</button>
+      <button class="danger" id="deleteSessionBtn">Delete log</button>
       <div style="flex:1;"></div>
-      <button class="secondary" id="cancelLogBtn">Cancel</button>
-      <button class="primary" id="saveLogBtn">Save Log</button>
+      <button class="secondary" id="cancelSessionBtn">Cancel</button>
+      <button class="primary" id="saveSessionBtn">Finish &amp; Save</button>
     </div>
   </div>
 </div>
