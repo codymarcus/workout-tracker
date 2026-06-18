@@ -288,9 +288,19 @@
   .add-set-fields .field { display: flex; flex-direction: column; }
   .add-set-fields label { margin-bottom: 2px; font-size: 12px; }
   .add-set-fields input { width: 84px; font-weight: 600; }
+  .total-field .total-display {
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    padding: 0 4px;
+    font-weight: 600;
+    color: var(--muted);
+    white-space: nowrap;
+  }
   .timer-display { font-size: 22px; font-weight: 700; font-family: monospace; min-width: 70px; }
   .set-table input { width: 100%; max-width: 90px; }
   .set-table { min-width: 220px; }
+  .set-table .total-cell { color: var(--muted); font-weight: 600; white-space: nowrap; }
 
   @media (max-width: 600px) {
     body { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
@@ -309,6 +319,7 @@
     .toolbar .small-muted { text-align: center; }
     .modal-backdrop { padding: 0; align-items: flex-end; }
     .modal { max-width: 100%; width: 100%; border-radius: var(--radius) var(--radius) 0 0; max-height: 85vh; }
+    .modal-actions { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
     .list-item .actions { flex-direction: column; }
     /* iOS Safari's native date/select controls ignore container width when
        sharing a flex row, causing them to visually overlap the next field.

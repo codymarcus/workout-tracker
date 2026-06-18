@@ -131,9 +131,18 @@ function composeSet(ex, vals) {
   }
 }
 
-function formatSetSummary(type, set) {
+function formatSetSummary(ex, set) {
+  const type = ex.type;
   if (type === 'timed') return formatSeconds(set.seconds || 0);
   if (type === 'bodyweight') return `${set.reps || 0} reps`;
+  if (type === 'barbell') {
+    const perSide = roundTo((set.weight - barWeightOf(ex)) / 2);
+    return `${set.reps || 0}×${perSide}/side (${roundTo(set.weight) || 0} lb)`;
+  }
+  if (type === 'dumbbell') {
+    const perDb = roundTo(set.weight / 2);
+    return `${set.reps || 0}×${perDb}/db (${roundTo(set.weight) || 0} lb)`;
+  }
   return `${set.reps || 0}×${set.weight || 0}`;
 }
 
@@ -521,8 +530,8 @@ function createExerciseCard(ex, workout) {
 function setColumnHeaders(type) {
   if (type === 'timed') return '<th>Time</th>';
   if (type === 'bodyweight') return '<th>Reps</th>';
-  if (type === 'barbell') return '<th>Reps</th><th>Plates/side</th>';
-  if (type === 'dumbbell') return '<th>Reps</th><th>Weight/DB</th>';
+  if (type === 'barbell') return '<th>Reps</th><th>Plates/side</th><th>Total</th>';
+  if (type === 'dumbbell') return '<th>Reps</th><th>Weight/DB</th><th>Total</th>';
   return '<th>Reps</th><th>Weight</th>';
 }
 
@@ -534,7 +543,7 @@ function renderCardBody(ex, st, body, refreshBody) {
   if (history.length === 0) {
     histDiv.innerHTML = '<div class="label">Recent</div><div class="small-muted">No previous history for this exercise yet.</div>';
   } else {
-    const lines = history.map(h => `<span class="hdate">${escapeHtml(h.date)}</span> ${escapeHtml(h.sets.map(s => formatSetSummary(ex.type, s)).join(', '))}`);
+    const lines = history.map(h => `<span class="hdate">${escapeHtml(h.date)}</span> ${escapeHtml(h.sets.map(s => formatSetSummary(ex, s)).join(', '))}`);
     const trendVals = [...history].reverse().map(h => trendMetric(ex.type, h.sets));
     histDiv.innerHTML = `
       <div class="label">Recent</div>
@@ -584,9 +593,9 @@ function buildSetRow(ex, st, i, refreshBody) {
   } else if (ex.type === 'bodyweight') {
     inputsHtml = `<td><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></td>`;
   } else if (ex.type === 'barbell') {
-    inputsHtml = `<td><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></td><td><input type="number" class="extra-input" min="0" step="any" value="${decomposed.perSide ?? ''}"></td>`;
+    inputsHtml = `<td><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></td><td><input type="number" class="extra-input" min="0" step="any" value="${decomposed.perSide ?? ''}"></td><td class="total-cell">${roundTo(set.weight)} lb</td>`;
   } else if (ex.type === 'dumbbell') {
-    inputsHtml = `<td><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></td><td><input type="number" class="extra-input" min="0" step="any" value="${decomposed.perDb ?? ''}"></td>`;
+    inputsHtml = `<td><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></td><td><input type="number" class="extra-input" min="0" step="any" value="${decomposed.perDb ?? ''}"></td><td class="total-cell">${roundTo(set.weight)} lb</td>`;
   } else {
     inputsHtml = `<td><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></td><td><input type="number" class="extra-input" min="0" step="any" value="${decomposed.weight ?? ''}"></td>`;
   }
@@ -596,6 +605,7 @@ function buildSetRow(ex, st, i, refreshBody) {
   const repsInput = tr.querySelector('.reps-input');
   const extraInput = tr.querySelector('.extra-input');
   const secondsInput = tr.querySelector('.seconds-input');
+  const totalCell = tr.querySelector('.total-cell');
 
   function readVals() {
     if (ex.type === 'timed') return { seconds: secondsInput.value };
@@ -607,7 +617,10 @@ function buildSetRow(ex, st, i, refreshBody) {
 
   [repsInput, extraInput, secondsInput].forEach(inp => {
     if (!inp) return;
-    inp.addEventListener('input', () => updateFromInputs(readVals));
+    inp.addEventListener('input', () => {
+      updateFromInputs(readVals);
+      if (totalCell) totalCell.textContent = `${roundTo(set.weight)} lb`;
+    });
   });
 
   tr.querySelector('.remove-set-btn').addEventListener('click', () => {
@@ -628,8 +641,10 @@ function buildStandardAddControls(ex, st, history, refreshBody) {
   let fieldsHtml = `<div class="field"><label>Reps</label><input type="number" class="reps-input" min="0" value="${decomposed.reps ?? ''}"></div>`;
   if (ex.type === 'barbell') {
     fieldsHtml += `<div class="field"><label>Plates/side</label><input type="number" class="extra-input" min="0" step="any" value="${decomposed.perSide ?? ''}"></div>`;
+    fieldsHtml += `<div class="field total-field"><label>Total</label><div class="total-display"></div></div>`;
   } else if (ex.type === 'dumbbell') {
     fieldsHtml += `<div class="field"><label>Weight/DB</label><input type="number" class="extra-input" min="0" step="any" value="${decomposed.perDb ?? ''}"></div>`;
+    fieldsHtml += `<div class="field total-field"><label>Total</label><div class="total-display"></div></div>`;
   } else if (ex.type === 'normal') {
     fieldsHtml += `<div class="field"><label>Weight</label><input type="number" class="extra-input" min="0" step="any" value="${decomposed.weight ?? ''}"></div>`;
   }
@@ -641,6 +656,19 @@ function buildStandardAddControls(ex, st, history, refreshBody) {
   addBtn.type = 'button';
   addBtn.textContent = '+ Add Set';
   wrap.appendChild(addBtn);
+
+  const extraInputEl = wrap.querySelector('.extra-input');
+  const totalDisplay = wrap.querySelector('.total-display');
+  function updateTotalDisplay() {
+    if (!totalDisplay) return;
+    const v = Number(extraInputEl.value) || 0;
+    const total = ex.type === 'barbell' ? v * 2 + barWeightOf(ex) : v * 2;
+    totalDisplay.textContent = `${roundTo(total)} lb`;
+  }
+  if (totalDisplay) {
+    updateTotalDisplay();
+    extraInputEl.addEventListener('input', updateTotalDisplay);
+  }
 
   addBtn.addEventListener('click', () => {
     const repsInput = wrap.querySelector('.reps-input');
@@ -871,8 +899,7 @@ function renderHistoryList() {
     const workout = getWorkout(log.workoutId);
     const summary = log.exerciseLogs.map(el => {
       const exDef = workout && workout.exercises.find(e => e.id === el.exerciseId);
-      const type = exDef ? exDef.type : 'normal';
-      const setsStr = el.sets.map(s => formatSetSummary(type, s)).join(', ');
+      const setsStr = el.sets.map(s => formatSetSummary(exDef || { type: 'normal' }, s)).join(', ');
       return `${escapeHtml(el.name)} (${setsStr || 'no sets'})`;
     }).join(' • ');
     return `
