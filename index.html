@@ -134,6 +134,9 @@
     width: 100%;
     min-width: 0;
   }
+  /* iOS Safari ignores width:100% on date inputs in flex containers and
+     sizes them to their intrinsic content instead; min-width forces it. */
+  input[type="date"] { width: 0; min-width: 100%; }
   input::placeholder { color: var(--muted); }
   label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; font-weight: 500; }
   .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -307,6 +310,11 @@
     .modal-backdrop { padding: 0; align-items: flex-end; }
     .modal { max-width: 100%; width: 100%; border-radius: var(--radius) var(--radius) 0 0; max-height: 85vh; }
     .list-item .actions { flex-direction: column; }
+    /* iOS Safari's native date/select controls ignore container width when
+       sharing a flex row, causing them to visually overlap the next field.
+       Stack row fields full-width on mobile to avoid this. */
+    .row { flex-direction: column; }
+    .row > div { flex: 1 1 auto; width: 100%; }
 
     /* bottom tab bar nav */
     nav {
