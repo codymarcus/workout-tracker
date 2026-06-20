@@ -476,6 +476,7 @@ function renderSessionModal(workout) {
   const metaRow = document.getElementById('sessionMetaRow');
   const backBtn = document.getElementById('sessionBackBtn');
   const titleSpan = document.getElementById('sessionModalTitle');
+  const actions = document.getElementById('sessionModalActions');
   container.innerHTML = '';
 
   const activeEx = activeSession.activeExerciseId
@@ -485,11 +486,13 @@ function renderSessionModal(workout) {
   if (activeEx) {
     metaRow.classList.add('hidden');
     backBtn.classList.remove('hidden');
+    actions.classList.add('hidden');
     titleSpan.textContent = activeEx.name;
     container.appendChild(renderExerciseDetail(activeEx, workout));
   } else {
     metaRow.classList.remove('hidden');
     backBtn.classList.add('hidden');
+    actions.classList.remove('hidden');
     titleSpan.textContent = activeSession.baseTitle;
     container.appendChild(renderExerciseListView(workout));
   }
