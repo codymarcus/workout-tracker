@@ -508,14 +508,26 @@ function renderExerciseListView(workout) {
     .map((ex, i) => ({ ex, i, done: activeSession.exStates[ex.id].sets.length > 0 }))
     .sort((a, b) => (a.done === b.done ? a.i - b.i : (a.done ? 1 : -1)));
 
+  let dividerShown = false;
   ordered.forEach(({ ex, done }) => {
+    if (done && !dividerShown) {
+      dividerShown = true;
+      const divider = document.createElement('div');
+      divider.className = 'exercise-list-divider';
+      divider.textContent = 'Completed';
+      wrap.appendChild(divider);
+    }
+
     const st = activeSession.exStates[ex.id];
     const row = document.createElement('div');
     row.className = `exercise-list-row type-${ex.type}${done ? ' is-done' : ''}`;
     row.innerHTML = `
-      <div>
-        <div class="name">${escapeHtml(ex.name)} <span class="type-badge type-${ex.type}">${TYPE_LABELS[ex.type] || 'Normal'}</span></div>
-        <div class="status${done ? ' done' : ''}">${done ? `✓ ${st.sets.length} set${st.sets.length > 1 ? 's' : ''} logged` : 'Not started'}</div>
+      <div class="row-main">
+        <div class="status-dot">✓</div>
+        <div>
+          <div class="name">${escapeHtml(ex.name)} <span class="type-badge type-${ex.type}">${TYPE_LABELS[ex.type] || 'Normal'}</span></div>
+          <div class="status${done ? ' done' : ''}">${done ? `✓ ${st.sets.length} set${st.sets.length > 1 ? 's' : ''} logged` : 'Not started'}</div>
+        </div>
       </div>
       <div class="chevron">›</div>
     `;

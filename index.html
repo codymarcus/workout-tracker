@@ -260,20 +260,38 @@
   /* Session modal: exercise list (step 1) */
   .exercise-list-row {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    padding: 16px; margin-bottom: 10px; background: var(--panel); border: 1px solid var(--border);
+    padding: 14px 16px; margin-bottom: 10px; background: var(--panel); border: 1px solid var(--border);
     border-left: 4px solid var(--ex-color, var(--border)); border-radius: var(--radius);
     cursor: pointer; min-height: 56px;
+  }
+  .exercise-list-row .row-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .exercise-list-row .status-dot {
+    width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+    border: 2px solid var(--border); background: var(--panel-2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: transparent;
   }
   .exercise-list-row.type-normal { --ex-color: var(--c-normal); }
   .exercise-list-row.type-barbell { --ex-color: var(--c-barbell); }
   .exercise-list-row.type-dumbbell { --ex-color: var(--c-dumbbell); }
   .exercise-list-row.type-bodyweight { --ex-color: var(--c-bodyweight); }
   .exercise-list-row.type-timed { --ex-color: var(--c-timed); }
-  .exercise-list-row.is-done { opacity: 0.65; }
+  .exercise-list-row.is-done {
+    background: color-mix(in srgb, var(--good) 9%, var(--panel));
+    border-left-color: var(--good);
+    border-color: color-mix(in srgb, var(--good) 35%, var(--border));
+  }
+  .exercise-list-row.is-done .status-dot { background: var(--good); border-color: var(--good); color: #fff; }
   .exercise-list-row .name { font-weight: 700; font-size: 15px; }
+  .exercise-list-row.is-done .name { color: var(--muted); text-decoration: line-through; }
   .exercise-list-row .status { font-size: 12px; color: var(--muted); margin-top: 3px; }
-  .exercise-list-row .status.done { color: var(--good); font-weight: 600; }
+  .exercise-list-row .status.done { color: var(--good); font-weight: 700; }
   .exercise-list-row .chevron { color: var(--muted); font-size: 20px; flex-shrink: 0; }
+  .exercise-list-divider {
+    display: flex; align-items: center; gap: 8px; margin: 16px 0 10px;
+    color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .exercise-list-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
   /* Session modal: exercise detail (step 2) */
   .set-chip-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
