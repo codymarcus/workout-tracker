@@ -63,6 +63,16 @@ function formatDateLocal(d) {
   return `${y}-${m}-${day}`;
 }
 
+const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const SHORT_DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+// dateStr is YYYY-MM-DD; parse as local components to avoid UTC shift.
+function formatDateDisplay(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return `${SHORT_DOW[date.getDay()]}, ${SHORT_MONTHS[m - 1]} ${d}`;
+}
+
 function findLogByDate(dateStr) {
   return state.logs.find(l => l.date === dateStr);
 }
@@ -561,11 +571,21 @@ function renderExerciseDetail(ex, workout) {
     if (history.length === 0) {
       histDiv.innerHTML = '<div class="label">Recent</div><div class="small-muted">No previous history for this exercise yet.</div>';
     } else {
-      const lines = history.map(h => `<span class="hdate">${escapeHtml(h.date)}</span> ${escapeHtml(h.sets.map(s => formatSetSummary(ex, s)).join(', '))}`);
+      const days = history.map(h => `
+        <div class="history-day">
+          <div class="history-day-header">
+            <span class="history-day-date">${escapeHtml(formatDateDisplay(h.date))}</span>
+            <span class="history-day-count">${h.sets.length} set${h.sets.length > 1 ? 's' : ''}</span>
+          </div>
+          <div class="history-set-list">
+            ${h.sets.map((s, i) => `<span class="history-set-pill"><span class="idx">${i + 1}</span>${escapeHtml(formatSetSummary(ex, s))}</span>`).join('')}
+          </div>
+        </div>
+      `).join('');
       const trendVals = [...history].reverse().map(h => trendMetric(ex.type, h.sets));
       histDiv.innerHTML = `
         <div class="label">Recent</div>
-        ${lines.map(l => `<div class="history-line">${l}</div>`).join('')}
+        ${days}
         ${trendVals.length > 1 ? `<div class="trend-line">Trend: ${trendVals.map(escapeHtml).join(' → ')}</div>` : ''}
       `;
     }
