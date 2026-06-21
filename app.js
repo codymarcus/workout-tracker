@@ -162,6 +162,23 @@ function trendMetric(type, sets) {
   return `${Math.max(...sets.map(s => s.weight || 0))} lb`;
 }
 
+function historyColumnHeaders(type) {
+  if (type === 'timed') return ['Time'];
+  if (type === 'bodyweight') return ['Reps'];
+  if (type === 'barbell') return ['Reps', 'Plates/side', 'Total'];
+  if (type === 'dumbbell') return ['Reps', 'Weight/DB', 'Total'];
+  return ['Reps', 'Weight'];
+}
+
+function historySetCells(ex, set) {
+  const d = decomposeSet(ex, set);
+  if (ex.type === 'timed') return [formatSeconds(set.seconds || 0)];
+  if (ex.type === 'bodyweight') return [`${d.reps ?? 0}`];
+  if (ex.type === 'barbell') return [`${d.reps ?? 0}`, `${roundTo(d.perSide ?? 0)}`, `${roundTo(set.weight)} lb`];
+  if (ex.type === 'dumbbell') return [`${d.reps ?? 0}`, `${roundTo(d.perDb ?? 0)}`, `${roundTo(set.weight)} lb`];
+  return [`${d.reps ?? 0}`, `${d.weight ?? 0}`];
+}
+
 // Sessions strictly before `beforeDate` that logged this exercise with at
 // least one set, most recent first.
 function getExerciseHistory(exerciseId, beforeDate, excludeLogId, limit = 4) {
@@ -571,15 +588,19 @@ function renderExerciseDetail(ex, workout) {
     if (history.length === 0) {
       histDiv.innerHTML = '<div class="label">Recent</div><div class="small-muted">No previous history for this exercise yet.</div>';
     } else {
+      const headers = historyColumnHeaders(ex.type);
       const days = history.map(h => `
         <div class="history-day">
           <div class="history-day-header">
             <span class="history-day-date">${escapeHtml(formatDateDisplay(h.date))}</span>
             <span class="history-day-count">${h.sets.length} set${h.sets.length > 1 ? 's' : ''}</span>
           </div>
-          <div class="history-set-list">
-            ${h.sets.map((s, i) => `<span class="history-set-pill"><span class="idx">${i + 1}</span>${escapeHtml(formatSetSummary(ex, s))}</span>`).join('')}
-          </div>
+          <table class="history-table">
+            <thead><tr><th>#</th>${headers.map(hd => `<th>${escapeHtml(hd)}</th>`).join('')}</tr></thead>
+            <tbody>
+              ${h.sets.map((s, i) => `<tr><td>${i + 1}</td>${historySetCells(ex, s).map(c => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`).join('')}
+            </tbody>
+          </table>
         </div>
       `).join('');
       const trendVals = [...history].reverse().map(h => trendMetric(ex.type, h.sets));
