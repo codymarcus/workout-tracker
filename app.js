@@ -498,6 +498,42 @@ function openSessionModal(workout, date, existingLog) {
   openModal('sessionModal');
 }
 
+// Auto-persist progress as sets are added/removed so an in-progress workout
+// is never lost if the user backs out without explicitly finishing & saving.
+function persistSession() {
+  if (!activeSession) return;
+  const workout = getWorkout(activeSession.workoutId);
+  if (!workout) return;
+
+  const exerciseLogs = workout.exercises.map(ex => ({
+    exerciseId: ex.id,
+    name: ex.name,
+    sets: activeSession.exStates[ex.id].sets.map(s => ({ ...s })),
+  }));
+
+  if (activeSession.existingLogId) {
+    const log = state.logs.find(l => l.id === activeSession.existingLogId);
+    if (log) log.exerciseLogs = exerciseLogs;
+  } else {
+    if (!exerciseLogs.some(el => el.sets.length > 0)) return;
+    const colliding = findLogByDate(activeSession.date);
+    if (colliding) {
+      state.logs = state.logs.filter(l => l.id !== colliding.id);
+    }
+    const log = {
+      id: uid(),
+      date: activeSession.date,
+      workoutId: workout.id,
+      workoutName: workout.name,
+      exerciseLogs,
+    };
+    state.logs.push(log);
+    activeSession.existingLogId = log.id;
+    document.getElementById('deleteSessionBtn').classList.remove('hidden');
+  }
+  saveData();
+}
+
 function renderSessionModal(workout) {
   const container = document.getElementById('sessionExercisesContainer');
   const metaRow = document.getElementById('sessionMetaRow');
@@ -621,6 +657,7 @@ function renderExerciseDetail(ex, workout) {
         chip.innerHTML = `${escapeHtml(`${i + 1}. ${formatSetSummary(ex, set)}`)} <button type="button" class="set-chip-remove" title="Remove set">✕</button>`;
         chip.querySelector('.set-chip-remove').addEventListener('click', () => {
           st.sets.splice(i, 1);
+          persistSession();
           refresh();
         });
         chipList.appendChild(chip);
@@ -679,6 +716,7 @@ function renderExerciseDetail(ex, workout) {
           repsVal = input.value;
           if (ex.type === 'bodyweight') {
             st.sets.push(composeSet(ex, { reps: repsVal }));
+            persistSession();
             refresh();
           } else {
             stepExtra();
@@ -729,6 +767,7 @@ function renderExerciseDetail(ex, workout) {
           const vals = { reps: repsVal };
           vals[extraKey] = input.value;
           st.sets.push(composeSet(ex, vals));
+          persistSession();
           refresh();
         }
         addBtn2.addEventListener('click', proceed);
@@ -790,6 +829,7 @@ function renderExerciseDetail(ex, workout) {
         timer.intervalId = null;
         timer.startTs = null;
         st.sets.push({ seconds: elapsed });
+        persistSession();
         refresh();
       });
 
@@ -797,6 +837,7 @@ function renderExerciseDetail(ex, workout) {
 
       addSecondsBtn.addEventListener('click', () => {
         st.sets.push(composeSet(ex, { seconds: secondsInput.value }));
+        persistSession();
         refresh();
       });
     }
@@ -822,6 +863,8 @@ document.getElementById('sessionBackBtn').addEventListener('click', () => {
 document.getElementById('cancelSessionBtn').addEventListener('click', () => {
   stopAllTimers();
   closeModal('sessionModal');
+  renderCalendar();
+  renderHistoryList();
 });
 
 document.getElementById('saveSessionBtn').addEventListener('click', () => {
