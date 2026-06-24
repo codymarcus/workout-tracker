@@ -294,16 +294,16 @@
   .exercise-list-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
   /* Session modal: exercise detail (step 2) */
-  .set-chip-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-  .set-chip {
-    display: flex; align-items: center; gap: 4px; background: var(--panel-2); border: 1px solid var(--border);
-    border-radius: 999px; padding: 8px 8px 8px 14px; font-size: 13px; font-weight: 600;
+  .current-sets-table {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 10px 12px; margin: 12px 0;
   }
-  .set-chip .set-chip-remove {
-    background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1;
+  .current-sets-table th:last-child, .current-sets-table td:last-child { text-align: right; padding-right: 2px; width: 1%; }
+  .set-row-remove {
+    background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1;
     padding: 4px 6px;
   }
-  .set-chip .set-chip-remove:hover { color: var(--danger); }
+  .set-row-remove:hover { color: var(--danger); }
 
   .add-set-btn-big { width: 100%; min-height: 56px; font-size: 16px; margin-top: 8px; }
 

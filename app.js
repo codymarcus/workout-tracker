@@ -649,20 +649,29 @@ function renderExerciseDetail(ex, workout) {
     wrap.appendChild(histDiv);
 
     if (st.sets.length > 0) {
-      const chipList = document.createElement('div');
-      chipList.className = 'set-chip-list';
-      st.sets.forEach((set, i) => {
-        const chip = document.createElement('span');
-        chip.className = 'set-chip';
-        chip.innerHTML = `${escapeHtml(`${i + 1}. ${formatSetSummary(ex, set)}`)} <button type="button" class="set-chip-remove" title="Remove set">✕</button>`;
-        chip.querySelector('.set-chip-remove').addEventListener('click', () => {
-          st.sets.splice(i, 1);
+      const headers = historyColumnHeaders(ex.type);
+      const setsTable = document.createElement('table');
+      setsTable.className = 'history-table current-sets-table';
+      setsTable.innerHTML = `
+        <thead><tr><th>#</th>${headers.map(hd => `<th>${escapeHtml(hd)}</th>`).join('')}<th></th></tr></thead>
+        <tbody>
+          ${st.sets.map((set, i) => `
+            <tr>
+              <td>${i + 1}</td>
+              ${historySetCells(ex, set).map(c => `<td>${escapeHtml(c)}</td>`).join('')}
+              <td><button type="button" class="set-row-remove" title="Remove set" data-i="${i}">✕</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      `;
+      setsTable.querySelectorAll('.set-row-remove').forEach(btn => {
+        btn.addEventListener('click', () => {
+          st.sets.splice(Number(btn.dataset.i), 1);
           persistSession();
           refresh();
         });
-        chipList.appendChild(chip);
       });
-      wrap.appendChild(chipList);
+      wrap.appendChild(setsTable);
     }
 
     const addArea = document.createElement('div');
