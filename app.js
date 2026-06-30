@@ -625,7 +625,9 @@ function renderExerciseDetail(ex, workout) {
       histDiv.innerHTML = '<div class="label">Recent</div><div class="small-muted">No previous history for this exercise yet.</div>';
     } else {
       const headers = historyColumnHeaders(ex.type);
-      const days = history.map(h => `
+      // history is newest-first; display oldest-to-newest so the most recent day lands at the bottom.
+      const oldestToNewest = [...history].reverse();
+      const days = oldestToNewest.map(h => `
         <div class="history-day">
           <div class="history-day-header">
             <span class="history-day-date">${escapeHtml(formatDateDisplay(h.date))}</span>
@@ -639,12 +641,14 @@ function renderExerciseDetail(ex, workout) {
           </table>
         </div>
       `).join('');
-      const trendVals = [...history].reverse().map(h => trendMetric(ex.type, h.sets));
+      const trendVals = oldestToNewest.map(h => trendMetric(ex.type, h.sets));
       histDiv.innerHTML = `
         <div class="label">Recent</div>
-        ${days}
+        <div class="history-days-scroll">${days}</div>
         ${trendVals.length > 1 ? `<div class="trend-line">Trend: ${trendVals.map(escapeHtml).join(' → ')}</div>` : ''}
       `;
+      const scrollEl = histDiv.querySelector('.history-days-scroll');
+      requestAnimationFrame(() => { scrollEl.scrollTop = scrollEl.scrollHeight; });
     }
     wrap.appendChild(histDiv);
 
