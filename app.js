@@ -14,29 +14,48 @@ const TYPE_LABELS = {
 // numbers the user already logged. Exercises gain a `type` (defaulting to
 // 'normal', which is exactly how the app behaved before types existed) and
 // barbell exercises gain a `barWeight` if missing.
+//
+// Also (re)builds `exerciseArchive`, a map of every exercise ever defined,
+// keyed by id. Logs reference exercises by id, and an exercise can be
+// removed from a workout's definition without deleting the logs that used
+// it — the archive is how we keep displaying/editing that history correctly
+// (name, type, bar weight) after the exercise is gone from the workout.
 function migrateState(s) {
+  const archive = { ...(s.exerciseArchive || {}) };
   s.workouts = (s.workouts || []).map(w => ({
     ...w,
-    exercises: (w.exercises || []).map(e => ({
-      id: e.id,
-      name: e.name,
-      type: e.type || 'normal',
-      barWeight: (e.type || 'normal') === 'barbell' ? (e.barWeight ?? DEFAULT_BAR_WEIGHT) : e.barWeight,
-    })),
+    exercises: (w.exercises || []).map(e => {
+      const ex = {
+        id: e.id,
+        name: e.name,
+        type: e.type || 'normal',
+        barWeight: (e.type || 'normal') === 'barbell' ? (e.barWeight ?? DEFAULT_BAR_WEIGHT) : e.barWeight,
+      };
+      archive[ex.id] = { ...ex };
+      return ex;
+    }),
   }));
   s.logs = s.logs || [];
+  s.logs.forEach(l => {
+    (l.exerciseLogs || []).forEach(el => {
+      if (!archive[el.exerciseId]) {
+        archive[el.exerciseId] = { id: el.exerciseId, name: el.name, type: 'normal' };
+      }
+    });
+  });
+  s.exerciseArchive = archive;
   return s;
 }
 
 function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { workouts: [], logs: [] };
+    if (!raw) return { workouts: [], logs: [], exerciseArchive: {} };
     const parsed = JSON.parse(raw);
-    return migrateState({ workouts: parsed.workouts || [], logs: parsed.logs || [] });
+    return migrateState({ workouts: parsed.workouts || [], logs: parsed.logs || [], exerciseArchive: parsed.exerciseArchive || {} });
   } catch (e) {
     console.error('Failed to load data', e);
-    return { workouts: [], logs: [] };
+    return { workouts: [], logs: [], exerciseArchive: {} };
   }
 }
 
@@ -79,6 +98,22 @@ function findLogByDate(dateStr) {
 
 function getWorkout(id) {
   return state.workouts.find(w => w.id === id);
+}
+
+// Look up an exercise's definition by id, whether or not it's still part of
+// any workout. Checked live against current workouts first (so edits show
+// immediately), falling back to the archive for exercises removed from
+// every workout.
+function findExerciseDef(exerciseId) {
+  for (const w of state.workouts) {
+    const found = w.exercises.find(e => e.id === exerciseId);
+    if (found) return found;
+  }
+  return state.exerciseArchive[exerciseId] || null;
+}
+
+function archiveExercise(ex) {
+  state.exerciseArchive[ex.id] = { id: ex.id, name: ex.name, type: ex.type, barWeight: ex.barWeight };
 }
 
 function escapeHtml(str) {
@@ -348,11 +383,13 @@ document.getElementById('saveWorkoutBtn').addEventListener('click', () => {
 
   if (editingWorkoutId) {
     const w = getWorkout(editingWorkoutId);
+    w.exercises.forEach(archiveExercise);
     w.name = name;
     w.exercises = draftExercises;
   } else {
     state.workouts.push({ id: uid(), name, exercises: draftExercises });
   }
+  draftExercises.forEach(archiveExercise);
   saveData();
   closeModal('workoutModal');
   renderWorkoutList();
@@ -481,6 +518,11 @@ function openSessionModal(workout, date, existingLog) {
     date, workoutId: workout.id, existingLogId: existingLog ? existingLog.id : null,
     exStates: {}, timers: {}, activeExerciseId: null,
     baseTitle: existingLog ? 'Edit Logged Workout' : 'Start Workout',
+    // Exercises this log has sets for that are no longer part of the
+    // workout's current definition. Kept around (and still editable) so
+    // editing this session never silently deletes that history — see
+    // buildExerciseLogs().
+    extraExercises: [],
   };
 
   workout.exercises.forEach(ex => {
@@ -490,12 +532,41 @@ function openSessionModal(workout, date, existingLog) {
     activeSession.timers[ex.id] = { running: false, startTs: null, intervalId: null };
   });
 
+  if (existingLog) {
+    const currentIds = new Set(workout.exercises.map(e => e.id));
+    existingLog.exerciseLogs.forEach(el => {
+      if (currentIds.has(el.exerciseId) || el.sets.length === 0) return;
+      const def = findExerciseDef(el.exerciseId) || { id: el.exerciseId, name: el.name, type: 'normal' };
+      activeSession.extraExercises.push(def);
+      activeSession.exStates[def.id] = { sets: el.sets.map(s => ({ ...s })) };
+      activeSession.timers[def.id] = { running: false, startTs: null, intervalId: null };
+    });
+  }
+
   document.getElementById('sessionDateInput').value = date;
   document.getElementById('sessionWorkoutName').value = workout.name;
   document.getElementById('deleteSessionBtn').classList.toggle('hidden', !existingLog);
 
   renderSessionModal(workout);
   openModal('sessionModal');
+}
+
+// Build the exerciseLogs array to persist for the active session: every
+// exercise currently in the workout definition (even with zero sets, same
+// as always), plus any `extraExercises` (exercises removed from the
+// workout definition but still carrying sets from this session) that still
+// have at least one set. This is what keeps editing a past session from
+// silently wiping out history for an exercise that was later removed from
+// the workout template.
+function buildExerciseLogs(workout) {
+  const currentIds = new Set(workout.exercises.map(e => e.id));
+  return [...workout.exercises, ...activeSession.extraExercises]
+    .map(ex => ({
+      exerciseId: ex.id,
+      name: ex.name,
+      sets: activeSession.exStates[ex.id].sets.map(s => ({ ...s })),
+    }))
+    .filter(el => currentIds.has(el.exerciseId) || el.sets.length > 0);
 }
 
 // Auto-persist progress as sets are added/removed so an in-progress workout
@@ -505,11 +576,7 @@ function persistSession() {
   const workout = getWorkout(activeSession.workoutId);
   if (!workout) return;
 
-  const exerciseLogs = workout.exercises.map(ex => ({
-    exerciseId: ex.id,
-    name: ex.name,
-    sets: activeSession.exStates[ex.id].sets.map(s => ({ ...s })),
-  }));
+  const exerciseLogs = buildExerciseLogs(workout);
 
   if (activeSession.existingLogId) {
     const log = state.logs.find(l => l.id === activeSession.existingLogId);
@@ -543,7 +610,8 @@ function renderSessionModal(workout) {
   container.innerHTML = '';
 
   const activeEx = activeSession.activeExerciseId
-    ? workout.exercises.find(e => e.id === activeSession.activeExerciseId)
+    ? (workout.exercises.find(e => e.id === activeSession.activeExerciseId)
+      || activeSession.extraExercises.find(e => e.id === activeSession.activeExerciseId))
     : null;
 
   if (activeEx) {
@@ -563,16 +631,23 @@ function renderSessionModal(workout) {
 
 // Step 1: pick which exercise to log. Exercises with sets already logged
 // this session sink to the bottom so the remaining ones stay at the top.
+// Exercises removed from the workout definition (but still carrying sets
+// from this session) are included too, badged as removed, so their
+// history stays visible/editable instead of disappearing.
 function renderExerciseListView(workout) {
   const wrap = document.createElement('div');
   wrap.className = 'exercise-list';
 
-  const ordered = workout.exercises
-    .map((ex, i) => ({ ex, i, done: activeSession.exStates[ex.id].sets.length > 0 }))
+  const allExercises = [
+    ...workout.exercises.map(ex => ({ ex, removed: false })),
+    ...activeSession.extraExercises.map(ex => ({ ex, removed: true })),
+  ];
+  const ordered = allExercises
+    .map(({ ex, removed }, i) => ({ ex, removed, i, done: activeSession.exStates[ex.id].sets.length > 0 }))
     .sort((a, b) => (a.done === b.done ? a.i - b.i : (a.done ? 1 : -1)));
 
   let dividerShown = false;
-  ordered.forEach(({ ex, done }) => {
+  ordered.forEach(({ ex, removed, done }) => {
     if (done && !dividerShown) {
       dividerShown = true;
       const divider = document.createElement('div');
@@ -588,7 +663,7 @@ function renderExerciseListView(workout) {
       <div class="row-main">
         <div class="status-dot">✓</div>
         <div>
-          <div class="name">${escapeHtml(ex.name)} <span class="type-badge type-${ex.type}">${TYPE_LABELS[ex.type] || 'Normal'}</span></div>
+          <div class="name">${escapeHtml(ex.name)} <span class="type-badge type-${ex.type}">${TYPE_LABELS[ex.type] || 'Normal'}</span>${removed ? ' <span class="type-badge removed-badge">Removed from workout</span>' : ''}</div>
           <div class="status${done ? ' done' : ''}">${done ? `✓ ${st.sets.length} set${st.sets.length > 1 ? 's' : ''} logged` : 'Not started'}</div>
         </div>
       </div>
@@ -900,11 +975,7 @@ document.getElementById('saveSessionBtn').addEventListener('click', () => {
     }
   }
 
-  const exerciseLogs = workout.exercises.map(ex => ({
-    exerciseId: ex.id,
-    name: ex.name,
-    sets: activeSession.exStates[ex.id].sets.map(s => ({ ...s })),
-  }));
+  const exerciseLogs = buildExerciseLogs(workout);
 
   if (activeSession.existingLogId) {
     const log = state.logs.find(l => l.id === activeSession.existingLogId);
@@ -1023,7 +1094,7 @@ function renderHistoryList() {
   container.innerHTML = sorted.map(log => {
     const workout = getWorkout(log.workoutId);
     const summary = log.exerciseLogs.map(el => {
-      const exDef = workout && workout.exercises.find(e => e.id === el.exerciseId);
+      const exDef = findExerciseDef(el.exerciseId);
       const setsStr = el.sets.map(s => formatSetSummary(exDef || { type: 'normal' }, s)).join(', ');
       return `${escapeHtml(el.name)} (${setsStr || 'no sets'})`;
     }).join(' • ');
@@ -1090,7 +1161,7 @@ document.getElementById('importFile').addEventListener('change', (e) => {
         'Replace all data?',
         'Importing will overwrite your current workouts and logs with the contents of this file.',
         () => {
-          state = migrateState({ workouts: parsed.workouts, logs: parsed.logs });
+          state = migrateState({ workouts: parsed.workouts, logs: parsed.logs, exerciseArchive: parsed.exerciseArchive || {} });
           saveData();
           renderWorkoutList();
           renderHistoryList();
@@ -1108,7 +1179,7 @@ document.getElementById('importFile').addEventListener('change', (e) => {
 
 document.getElementById('clearAllBtn').addEventListener('click', () => {
   confirmDialog('Clear all data?', 'This will permanently delete all workouts and logs from this browser.', () => {
-    state = { workouts: [], logs: [] };
+    state = { workouts: [], logs: [], exerciseArchive: {} };
     saveData();
     renderWorkoutList();
     renderHistoryList();
