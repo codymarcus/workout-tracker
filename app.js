@@ -308,18 +308,24 @@ function renderExerciseTagList() {
     container.innerHTML = '<span class="small-muted">No exercises added yet.</span>';
     return;
   }
+  const otherWorkouts = editingWorkoutId
+    ? state.workouts.filter(w => w.id !== editingWorkoutId)
+    : [];
+
   container.innerHTML = draftExercises.map((ex, i) => `
-    <div class="exercise-def-row">
+    <div class="exercise-def-row" data-ex-row="${i}">
       <div>
         <span class="name">${escapeHtml(ex.name)}</span>
         <span class="type-badge type-${ex.type}">${TYPE_LABELS[ex.type] || 'Normal'}${ex.type === 'barbell' ? ` · bar ${barWeightOf(ex)}lb` : ''}</span>
       </div>
       <div style="display:flex; gap:6px;">
         <button class="icon-btn" type="button" data-edit-draft="${i}">Edit</button>
+        ${otherWorkouts.length > 0 ? `<button class="icon-btn" type="button" data-move-draft="${i}">Move</button>` : ''}
         <button class="danger" type="button" data-remove-draft="${i}">Remove</button>
       </div>
     </div>
   `).join('');
+
   container.querySelectorAll('[data-edit-draft]').forEach(btn => {
     btn.addEventListener('click', () => {
       const i = Number(btn.dataset.editDraft);
@@ -332,6 +338,43 @@ function renderExerciseTagList() {
       document.getElementById('addExerciseToWorkoutBtn').textContent = 'Update Exercise';
     });
   });
+
+  container.querySelectorAll('[data-move-draft]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = Number(btn.dataset.moveDraft);
+      const ex = draftExercises[i];
+      const row = container.querySelector(`[data-ex-row="${i}"]`);
+
+      const opts = otherWorkouts.map(w => `<option value="${escapeHtml(w.id)}">${escapeHtml(w.name)}</option>`).join('');
+      row.innerHTML = `
+        <div style="flex:1;">
+          <span class="name">${escapeHtml(ex.name)}</span>
+          <div style="margin-top:6px; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+            <select class="move-target-select" style="flex:1; min-width:0;">${opts}</select>
+            <button class="primary" type="button" data-confirm-move="${i}">Move</button>
+            <button class="secondary" type="button" data-cancel-move>Cancel</button>
+          </div>
+        </div>
+      `;
+
+      row.querySelector('[data-confirm-move]').addEventListener('click', () => {
+        const targetId = row.querySelector('.move-target-select').value;
+        const target = getWorkout(targetId);
+        if (!target) return;
+        draftExercises.splice(i, 1);
+        target.exercises.push(ex);
+        if (editingDraftIndex === i) resetExerciseDraftForm();
+        saveData();
+        renderExerciseTagList();
+        renderWorkoutList();
+      });
+
+      row.querySelector('[data-cancel-move]').addEventListener('click', () => {
+        renderExerciseTagList();
+      });
+    });
+  });
+
   container.querySelectorAll('[data-remove-draft]').forEach(btn => {
     btn.addEventListener('click', () => {
       draftExercises.splice(Number(btn.dataset.removeDraft), 1);
