@@ -361,6 +361,10 @@ function renderExerciseTagList() {
         const targetId = row.querySelector('.move-target-select').value;
         const target = getWorkout(targetId);
         if (!target) return;
+        if (target.exercises.some(e => e.id === ex.id)) {
+          alert(`${target.name} already has this exercise.`);
+          return;
+        }
         draftExercises.splice(i, 1);
         target.exercises.push(ex);
         if (editingDraftIndex === i) resetExerciseDraftForm();
@@ -415,6 +419,7 @@ function renderWorkoutList() {
       </div>
       <div class="actions">
         <button class="icon-btn" data-edit="${w.id}">Edit</button>
+        <button class="icon-btn" data-dup="${w.id}">Duplicate</button>
         <button class="danger" data-del="${w.id}">Delete</button>
       </div>
     </div>
@@ -422,6 +427,9 @@ function renderWorkoutList() {
 
   container.querySelectorAll('[data-edit]').forEach(btn => {
     btn.addEventListener('click', () => editWorkout(btn.dataset.edit));
+  });
+  container.querySelectorAll('[data-dup]').forEach(btn => {
+    btn.addEventListener('click', () => duplicateWorkout(btn.dataset.dup));
   });
   container.querySelectorAll('[data-del]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -436,6 +444,18 @@ function renderWorkoutList() {
       );
     });
   });
+}
+
+// The copy gets its own exercise objects, so editing it never touches the
+// original, but keeps the exercise ids so past sets still show up as history.
+function duplicateWorkout(id) {
+  const w = getWorkout(id);
+  if (!w) return;
+  const copy = { id: uid(), name: `${w.name} (copy)`, exercises: w.exercises.map(e => ({ ...e })) };
+  state.workouts.splice(state.workouts.indexOf(w) + 1, 0, copy);
+  saveData();
+  renderWorkoutList();
+  editWorkout(copy.id);
 }
 
 function editWorkout(id) {
