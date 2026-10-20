@@ -196,8 +196,12 @@
   .cal-day.today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
   .cal-day.has-log { background: rgba(31,157,108,0.12); border-color: var(--good); }
   .cal-day .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); margin-top: 2px; }
+  /* --vv-top/--vv-h track the visual viewport (set in app.js) so modals sit
+     above the iOS keyboard instead of underneath it. */
   .modal-backdrop {
-    position: fixed; inset: 0; background: rgba(20,24,32,0.55);
+    position: fixed; left: 0; right: 0;
+    top: var(--vv-top, 0px); height: var(--vv-h, 100%);
+    background: rgba(20,24,32,0.55);
     display: none; align-items: center; justify-content: center; z-index: 50;
     padding: 16px;
   }
@@ -208,7 +212,7 @@
     border-radius: var(--radius);
     max-width: 480px;
     width: 100%;
-    max-height: 90vh;
+    max-height: calc(var(--vv-h, 100vh) * 0.9);
     box-shadow: var(--shadow-lg);
     display: flex;
     flex-direction: column;
@@ -345,6 +349,12 @@
   .history-table tbody tr + tr td { border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
   .trend-line { color: var(--muted); margin-top: 8px; font-size: 12px; }
 
+  /* While the on-screen keyboard is up, give the input the room: shrink
+     history and drop the footer (the wizard has its own buttons). */
+  body.keyboard-open .history-days-scroll { max-height: calc(var(--vv-h) * 0.28); }
+  body.keyboard-open #sessionModalActions { display: none; }
+  body.keyboard-open .modal { max-height: var(--vv-h); }
+
   @media (max-width: 600px) {
     body { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
     header { padding: 12px 16px; justify-content: center; }
@@ -361,7 +371,7 @@
     .toolbar button { width: 100%; min-height: 46px; }
     .toolbar .small-muted { text-align: center; }
     .modal-backdrop { padding: 0; align-items: flex-end; }
-    .modal { max-width: 100%; width: 100%; border-radius: var(--radius) var(--radius) 0 0; max-height: 96vh; }
+    .modal { max-width: 100%; width: 100%; border-radius: var(--radius) var(--radius) 0 0; max-height: calc(var(--vv-h, 100vh) * 0.96); }
     .modal-actions { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
     .list-item .actions { flex-direction: column; }
     /* iOS Safari's native date/select controls ignore container width when

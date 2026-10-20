@@ -220,6 +220,31 @@ function showView(name) {
 }
 
 // ---------- Modal helpers ----------
+// iOS overlays the keyboard on top of the page rather than resizing it, so
+// size modals to the visual viewport and keep the focused field on screen.
+function syncVisualViewport() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const root = document.documentElement.style;
+  root.setProperty('--vv-h', `${vv.height}px`);
+  root.setProperty('--vv-top', `${vv.offsetTop}px`);
+  const keyboardOpen = window.innerHeight - vv.height > 120;
+  if (document.body.classList.contains('keyboard-open') !== keyboardOpen) {
+    document.body.classList.toggle('keyboard-open', keyboardOpen);
+    // The history box changes height, so re-pin it to the latest day.
+    document.querySelectorAll('.history-days-scroll').forEach(h => { h.scrollTop = h.scrollHeight; });
+  }
+  const el = document.activeElement;
+  if (keyboardOpen && el && el.matches('input') && el.closest('.modal')) {
+    requestAnimationFrame(() => (el.closest('.wizard-step') || el).scrollIntoView({ block: 'nearest' }));
+  }
+}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', syncVisualViewport);
+  window.visualViewport.addEventListener('scroll', syncVisualViewport);
+  syncVisualViewport();
+}
+
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
